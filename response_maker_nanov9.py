@@ -42,17 +42,17 @@ def main(testing=False):
             infiles = glob.glob(filestr % (era, htbin) )
             if testing: 
                 infiles = infiles[0:2]
-            if era not in fileset:
-                fileset[era] = []
-            else: 
-                fileset[era] = fileset[era] + [*infiles]
+            binname = era+htbin
+            if binname not in fileset:
+                fileset[binname] = []
+            fileset[binname] = fileset[binname] + [*infiles]
 
 
-    print("Processing files ")
-    for era,files in fileset.items():
-        print(era)
-        for file in files:
-            print(file)
+    #print("Processing files ")
+    #for era,files in fileset.items():
+    #    print(era)
+    #    for file in files:
+    #        print(file)
 
 
 

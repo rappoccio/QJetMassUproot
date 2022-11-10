@@ -22,23 +22,12 @@ def find_closest_dr( a, coll , verbose = False):
     
     
 
-def find_closest_subjets( a, subjetcoll, verbose=False ):
-    """
-    Subjets are stored like [s00 s01  s10 s11  s20 s21 ...]
-    So to find the closest subjet, first couple adjacent subjets together.
-    Then find the closest object of that list to 'a'. 
-    Return 'a' that has subjets, the subjets, and the delta R between the jet and the subjets. 
-    """
-    i = subjetcoll[:,0::2]
-    ni = ak.num(i,axis=1)
-    j = subjetcoll[:,1::2]
-    nj = ak.num(j,axis=1)
-    i = i [ ni == nj ]
-    j = j [ ni == nj ]
-    a = a[ ni == nj ]
-    subjets = i + j
-    subjet,dr_subjets = find_closest_dr( a, subjets, verbose )
-    return a,subjet,dr_subjets
+def get_groomed_jet( jet, subjets , verbose = False):
+    combs = ak.cartesian( (jet, subjets), axis=1 )
+    dr_jet_subjets = combs['0'].delta_r(combs['1'])
+    combs = combs[dr_jet_subjets < 0.4]
+    total = combs['1'].sum(axis=1)
+    return total
 
     
 def find_opposite( a, coll, dphimin = 1, verbose=False ):
@@ -63,6 +52,12 @@ class QJetMassProcessor(processor.ProcessorABC):
         self.etacut = etacut        
         self.lepptcuts = [ptcut_ee, ptcut_mm]
         
+        ptreco_axis = hist.axis.Variable([200,260,350,460,550,650,760,13000], name="ptreco", label=r"p_{T,RECO} (GeV)")        
+        mreco_axis = hist.axis.Variable([0,5,10,20,40,60,80,100,150,200,250,300,350,1000], name="mreco", label=r"m_{RECO} (GeV)")
+        ptgen_axis = hist.axis.Variable([200,260,350,460,550,650,760,13000], name="ptgen", label=r"p_{T,RECO} (GeV)")                
+        mgen_axis = hist.axis.Variable( [0,2.5,5,7.5,10,15,20,30,40,50,60,70,80,90,100,125,150,175,200,225,250,275,300,325,350,1000], name="mgen", label=r"Mass [GeV]")
+
+        
         dataset_axis = hist.axis.StrCategory([], growth=True, name="dataset", label="Primary dataset")
         lep_axis = hist.axis.StrCategory(["ee", "mm"], name="lep")
         n_axis = hist.axis.Regular(5, 0, 5, name="n", label=r"Number")
@@ -72,7 +67,9 @@ class QJetMassProcessor(processor.ProcessorABC):
         frac_axis = hist.axis.Regular(150, 0, 2.0, name="frac", label=r"Fraction")                
         dr_axis = hist.axis.Regular(150, 0, 6.0, name="dr", label=r"$\Delta R$")
         dr_fine_axis = hist.axis.Regular(150, 0, 1.5, name="dr", label=r"$\Delta R$")
-        dphi_axis = hist.axis.Regular(150, -2*np.pi, 2*np.pi, name="dphi", label=r"$\Delta \phi$")
+        dphi_axis = hist.axis.Regular(150, -2*np.pi, 2*np.pi, name="dphi", label=r"$\Delta \phi$")       
+        
+        ### Plots of things during the selection process / for debugging with fine binning
         h_njet_gen = hist.Hist(dataset_axis, lep_axis, n_axis, storage="weight", label="Counts")
         h_njet_reco = hist.Hist(dataset_axis, lep_axis, n_axis, storage="weight", label="Counts")
         h_ptjet_gen = hist.Hist(dataset_axis, lep_axis, pt_axis, storage="weight", label="Counts")
@@ -89,10 +86,16 @@ class QJetMassProcessor(processor.ProcessorABC):
         h_ptasym_z_jet_gen = hist.Hist(dataset_axis, lep_axis, frac_axis, storage="weight", label="Counts")
         h_ptasym_z_jet_reco = hist.Hist(dataset_axis, lep_axis, frac_axis, storage="weight", label="Counts")
         h_dr_gen_subjet = hist.Hist(dataset_axis, lep_axis, dr_axis, storage="weight", label="Counts")
-        h_mjet_reco_over_gen = hist.Hist(dataset_axis, lep_axis, frac_axis, storage="weight", label="Counts")
+        h_m_u_jet_reco_over_gen = hist.Hist(dataset_axis, lep_axis, frac_axis, storage="weight", label="Counts")
+        h_m_g_jet_reco_over_gen = hist.Hist(dataset_axis, lep_axis, frac_axis, storage="weight", label="Counts")
         
-        
-        
+        ### Plots for the analysis in the proper binning
+        h_response_matrix_u = hist.Hist(dataset_axis, lep_axis,
+                                        ptreco_axis, mreco_axis, ptgen_axis, mgen_axis, 
+                                        storage="weight", label="Counts")
+        h_response_matrix_g = hist.Hist(dataset_axis, lep_axis,
+                                        ptreco_axis, mreco_axis, ptgen_axis, mgen_axis, 
+                                        storage="weight", label="Counts")
         
         cutflow = {}
         
@@ -112,8 +115,11 @@ class QJetMassProcessor(processor.ProcessorABC):
             "dphi_z_jet_reco":h_dphi_z_jet_reco,
             "ptasym_z_jet_gen":h_ptasym_z_jet_gen,
             "ptasym_z_jet_reco":h_ptasym_z_jet_reco,
-            "mjet_reco_over_gen":h_mjet_reco_over_gen,
+            "m_u_jet_reco_over_gen":h_m_u_jet_reco_over_gen,
+            "m_g_jet_reco_over_gen":h_m_g_jet_reco_over_gen,
             "dr_gen_subjet":h_dr_gen_subjet,
+            "response_matrix_u":h_response_matrix_u,
+            "response_matrix_g":h_response_matrix_g,
             "cutflow":cutflow
         }
     
@@ -208,8 +214,8 @@ class QJetMassProcessor(processor.ProcessorABC):
             #####################################
 
             gensubjets = events[isDilepGen][z_gen_ptsel][n_gen_jet_sel][gen_jet_n][gen_jet_sel].SubGenJetAK8
-            gen_jet, groomed_gen_jet, groomedgenjet_dr = find_closest_subjets(gen_jet, gensubjets, False)
-            groomedgensel = np.logical_not( ak.is_none(groomed_gen_jet) ) & (groomedgenjet_dr < 0.4)
+            groomed_gen_jet = get_groomed_jet(gen_jet, gensubjets, False)
+            groomedgensel = ~ak.is_none(groomed_gen_jet)
             z_gen = z_gen[groomedgensel]
             gen_jet = gen_jet[groomedgensel]
             weights = weights[groomedgensel]
@@ -263,7 +269,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             
             # Find reco jet closest to the gen jet
             reco_jet,reco_jet_dr = find_closest_dr( gen_jet, recojets, verbose=False)
-            reco_jet_n = np.logical_not( ak.is_none(reco_jet) ) & (reco_jet_dr < 0.4)
+            reco_jet_n = np.logical_not( ak.is_none(reco_jet) ) & (reco_jet_dr < 0.2)
             gen_jet = gen_jet[reco_jet_n]
             groomed_gen_jet = groomed_gen_jet[reco_jet_n]
             reco_jet = reco_jet[reco_jet_n]
@@ -298,14 +304,20 @@ class QJetMassProcessor(processor.ProcessorABC):
             
             
             
+            #####################################
+            # Plots with full selection
+            #####################################
             
-            #print("groomedgenjet dr ", groomedgenjet.delta_r(gen_jet) )
-            #print("reco_jet.msoftdrop ", reco_jet.msoftdrop)
-            #print("groomedgenjet mass ", groomedgenjet.mass)
-            
-            
-            self.hists["mjet_reco_over_gen"].fill(dataset=dataset,lep=lepstr, frac=reco_jet.msoftdrop/groomed_gen_jet.mass, weight=weights)
+            self.hists["m_u_jet_reco_over_gen"].fill(dataset=dataset,lep=lepstr, frac=reco_jet.mass/gen_jet.mass, weight=weights)
+            self.hists["m_g_jet_reco_over_gen"].fill(dataset=dataset,lep=lepstr, frac=reco_jet.msoftdrop/groomed_gen_jet.mass, weight=weights)
 
+            
+            self.hists["response_matrix_u"].fill( dataset=dataset, lep=lepstr, 
+                                               ptreco=reco_jet.pt, ptgen=gen_jet.pt,
+                                               mreco=reco_jet.mass, mgen=gen_jet.mass )
+            self.hists["response_matrix_g"].fill( dataset=dataset, lep=lepstr, 
+                                               ptreco=reco_jet.pt, ptgen=gen_jet.pt,
+                                               mreco=reco_jet.msoftdrop, mgen=groomed_gen_jet.mass )
             
         return self.hists
 
