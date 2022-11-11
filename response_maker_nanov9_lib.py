@@ -122,6 +122,9 @@ class QJetMassProcessor(processor.ProcessorABC):
             "response_matrix_g":h_response_matrix_g,
             "cutflow":cutflow
         }
+        
+        ## This is for rejecting events with large weights
+        self.means_stddevs = defaultdict()
     
     @property
     def accumulator(self):
@@ -131,9 +134,27 @@ class QJetMassProcessor(processor.ProcessorABC):
     # we will receive a NanoEvents instead of a coffea DataFrame
     def process(self, events):
         dataset = events.metadata['dataset']
-        
         if dataset not in self.hists["cutflow"]:
             self.hists["cutflow"][dataset] = defaultdict(int)
+        
+        
+        ## Remove events with very large weights (>2 sigma)
+        if dataset not in self.means_stddevs : 
+            average = np.average( events["LHEWeight"].originalXWGTUP )
+            stddev = np.std( events["LHEWeight"].originalXWGTUP )
+            self.means_stddevs[dataset] = (average, stddev)
+            
+        average,stddev = self.means_stddevs[dataset]
+        vals = (events["LHEWeight"].originalXWGTUP - average ) / stddev
+        
+        self.hists["cutflow"][dataset]["all events"] += len(events)
+        
+        events = events[ np.abs(vals) < 2 ]
+        self.hists["cutflow"][dataset]["weights cut"] += len(events)
+        
+
+            
+        
 
         genelectrons = events.GenDressedLepton[ np.abs(events.GenDressedLepton.pdgId) == 11]
         genmuons = events.GenDressedLepton[ np.abs(events.GenDressedLepton.pdgId) == 13]        
