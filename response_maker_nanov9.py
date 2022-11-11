@@ -24,7 +24,7 @@ def main(testing=False):
         maxchunks = None
     else:
         nworkers = 1
-        chunksize = 10000
+        chunksize = 100
         maxchunks = 1
     
     eras = [

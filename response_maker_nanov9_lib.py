@@ -25,7 +25,7 @@ def find_closest_dr( a, coll , verbose = False):
 def get_groomed_jet( jet, subjets , verbose = False):
     combs = ak.cartesian( (jet, subjets), axis=1 )
     dr_jet_subjets = combs['0'].delta_r(combs['1'])
-    combs = combs[dr_jet_subjets < 0.4]
+    combs = combs[dr_jet_subjets < 0.8]
     total = combs['1'].sum(axis=1)
     return total
 
@@ -86,8 +86,10 @@ class QJetMassProcessor(processor.ProcessorABC):
         h_ptasym_z_jet_gen = hist.Hist(dataset_axis, lep_axis, frac_axis, storage="weight", label="Counts")
         h_ptasym_z_jet_reco = hist.Hist(dataset_axis, lep_axis, frac_axis, storage="weight", label="Counts")
         h_dr_gen_subjet = hist.Hist(dataset_axis, lep_axis, dr_axis, storage="weight", label="Counts")
-        h_m_u_jet_reco_over_gen = hist.Hist(dataset_axis, lep_axis, frac_axis, storage="weight", label="Counts")
-        h_m_g_jet_reco_over_gen = hist.Hist(dataset_axis, lep_axis, frac_axis, storage="weight", label="Counts")
+        
+        ### Plots to get JMR and JMS in MC
+        h_m_u_jet_reco_over_gen = hist.Hist(dataset_axis, lep_axis, ptgen_axis, mgen_axis, frac_axis, storage="weight", label="Counts")
+        h_m_g_jet_reco_over_gen = hist.Hist(dataset_axis, lep_axis, ptgen_axis, mgen_axis, frac_axis, storage="weight", label="Counts")
         
         ### Plots for the analysis in the proper binning
         h_response_matrix_u = hist.Hist(dataset_axis, lep_axis,
@@ -206,7 +208,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             self.hists["mz_gen"].fill(dataset=dataset,lep=lepstr, mass=z_gen.mass,weight=weights)
             self.hists["cutflow"][dataset][lepstr + " >=1 gen jet"] += ak.count_nonzero(gen_jet_n)
             
-            gen_jet_ptsel = gen_jet.pt > 170.
+            gen_jet_ptsel = gen_jet.pt > 120.
             gen_jet_etasel = np.abs(gen_jet.eta) < 2.5
             z_dphi_gen = z_gen.delta_phi( gen_jet )
             z_dphi_gen_sel = np.abs(z_dphi_gen) > np.pi * 0.5
@@ -239,8 +241,9 @@ class QJetMassProcessor(processor.ProcessorABC):
             groomedgensel = ~ak.is_none(groomed_gen_jet)
             z_gen = z_gen[groomedgensel]
             gen_jet = gen_jet[groomedgensel]
-            weights = weights[groomedgensel]
+            weights = weights[groomedgensel]            
             groomed_gen_jet = groomed_gen_jet[groomedgensel]
+            gensubjets = gensubjets[groomedgensel]
             self.hists["cutflow"][dataset][lepstr + " groomed gen jet cuts "] += ak.count_nonzero(groomedgensel)
             self.hists["dr_gen_subjet"].fill(dataset=dataset,lep=lepstr, dr=groomed_gen_jet.delta_r(gen_jet), weight=weights)
                         
@@ -258,6 +261,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             groomed_gen_jet = groomed_gen_jet[isDilepReco]
             z_gen = z_gen[isDilepReco]
             weights = weights[isDilepReco]
+            gensubjets = gensubjets[isDilepReco]
             self.hists["cutflow"][dataset][lepstr + " nlep >=2"] += ak.count_nonzero(isDilepReco)
 
             
@@ -269,6 +273,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             groomed_gen_jet = groomed_gen_jet[z_reco_ptsel]
             z_gen = z_gen[ z_reco_ptsel ]
             weights = weights[z_reco_ptsel]
+            gensubjets = gensubjets[z_reco_ptsel]
             self.hists["dr_z_jet_gen"].fill( dataset=dataset,lep=lepstr,dr=z_gen.delta_r(gen_jet), weight=weights )
             self.hists["cutflow"][dataset][lepstr + " zpt > 90"] += ak.count_nonzero(z_reco_ptsel)
             
@@ -277,7 +282,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             #####################################
             # Reco jet selection
             #####################################
-            recojets = events[isDilepGen][z_gen_ptsel][n_gen_jet_sel][gen_jet_n][gen_jet_sel][isDilepReco][z_reco_ptsel].FatJet            
+            recojets = events[isDilepGen][z_gen_ptsel][n_gen_jet_sel][gen_jet_n][gen_jet_sel][isDilepReco][z_reco_ptsel].FatJet
             self.hists["njet_reco"].fill(dataset=dataset,lep=lepstr, n=ak.num(recojets,axis=1))
             n_reco_jet_sel = ak.num( recojets,axis=1 ) > 0
             
@@ -287,6 +292,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             z_gen = z_gen[n_reco_jet_sel]
             z_reco = z_reco[n_reco_jet_sel]
             weights = weights[n_reco_jet_sel]
+            gensubjets = gensubjets[n_reco_jet_sel]
             
             # Find reco jet closest to the gen jet
             reco_jet,reco_jet_dr = find_closest_dr( gen_jet, recojets, verbose=False)
@@ -297,6 +303,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             z_reco = z_reco[reco_jet_n]
             z_gen = z_gen[reco_jet_n]
             weights = weights[reco_jet_n]
+            gensubjets = gensubjets[reco_jet_n]
             self.hists["mz_reco"].fill(dataset=dataset,lep=lepstr, mass=z_reco.mass, weight=weights)
             self.hists["mz_reco_over_gen"].fill(dataset=dataset,lep=lepstr, frac=z_reco.mass / z_gen.mass, weight=weights )
             self.hists["cutflow"][dataset][lepstr + " >=1 reco jet"] += ak.count_nonzero(reco_jet_n)
@@ -316,6 +323,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             gen_jet = gen_jet[reco_jet_sel]
             groomed_gen_jet = groomed_gen_jet[reco_jet_sel]
             weights = weights[reco_jet_sel]
+            gensubjets = gensubjets[reco_jet_sel]
 
             
             self.hists["cutflow"][dataset][lepstr + " reco jet cuts"] += len(reco_jet_sel)
@@ -329,8 +337,12 @@ class QJetMassProcessor(processor.ProcessorABC):
             # Plots with full selection
             #####################################
             
-            self.hists["m_u_jet_reco_over_gen"].fill(dataset=dataset,lep=lepstr, frac=reco_jet.mass/gen_jet.mass, weight=weights)
-            self.hists["m_g_jet_reco_over_gen"].fill(dataset=dataset,lep=lepstr, frac=reco_jet.msoftdrop/groomed_gen_jet.mass, weight=weights)
+            self.hists["m_u_jet_reco_over_gen"].fill(dataset=dataset,lep=lepstr, 
+                                                     ptgen=gen_jet.pt, mgen = gen_jet.mass, 
+                                                     frac=reco_jet.mass/gen_jet.mass, weight=weights)
+            self.hists["m_g_jet_reco_over_gen"].fill(dataset=dataset,lep=lepstr, 
+                                                     ptgen=gen_jet.pt, mgen=groomed_gen_jet.mass,
+                                                     frac=reco_jet.msoftdrop/groomed_gen_jet.mass, weight=weights)
 
             
             self.hists["response_matrix_u"].fill( dataset=dataset, lep=lepstr, 
@@ -339,6 +351,36 @@ class QJetMassProcessor(processor.ProcessorABC):
             self.hists["response_matrix_g"].fill( dataset=dataset, lep=lepstr, 
                                                ptreco=reco_jet.pt, ptgen=gen_jet.pt,
                                                mreco=reco_jet.msoftdrop, mgen=groomed_gen_jet.mass )
+            
+            
+            goodpt = (reco_jet.pt / gen_jet.pt > 0.8) & (reco_jet.pt / gen_jet.pt < 1.2)
+            toolowmass = (reco_jet.msoftdrop / groomed_gen_jet.mass) < 0.8
+            toohighmass = (reco_jet.msoftdrop / groomed_gen_jet.mass) > 1.2
+            
+            weird_reco_jets = reco_jet[goodpt & (toolowmass | toohighmass) ]
+            weird_gen_jets = gen_jet[goodpt & (toolowmass | toohighmass) ]
+            weird_gen_jets_groomed = groomed_gen_jet[goodpt & (toolowmass | toohighmass) ]
+            weird_subjets = gensubjets[goodpt & (toolowmass | toohighmass) ]
+            """
+            print('weird reco jets')
+            print("pt  ", weird_reco_jets.pt)
+            print("eta ", weird_reco_jets.eta)
+            print("phi ", weird_reco_jets.phi)
+            print("m   ", weird_reco_jets.mass)
+            print("msd ", weird_reco_jets.msoftdrop)
+            print('weird gen jets')
+            print("pt  ", weird_gen_jets.pt)
+            print("eta ", weird_gen_jets.eta)
+            print("phi ", weird_gen_jets.phi)
+            print("m   ", weird_gen_jets.mass)
+            print("msd ", weird_gen_jets_groomed.mass)
+            print("weird subjets list")
+            print("pt  ", weird_subjets.pt)
+            print("eta ", weird_subjets.eta)
+            print("phi ", weird_subjets.phi)
+            print("m   ", weird_subjets.mass)
+            print("dr  ", weird_subjets.delta_r (weird_gen_jets ) )
+            """
             
         return self.hists
 
