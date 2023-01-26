@@ -72,11 +72,11 @@ def main(testing=False, do_gen=True):
             fileset[era] = fileset[era] + [*muinfiles] + [*el1infiles] + [*el2infiles]
         
 
-    print("Processing files ")
-    for era,files in fileset.items():
-        print(era)
-        for file in files:
-            print(file)
+    #print("Processing files ")
+    #for era,files in fileset.items():
+    #    print(era)
+    #    for file in files:
+    #        print(file)
 
 
 
