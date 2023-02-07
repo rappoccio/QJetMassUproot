@@ -16,8 +16,24 @@ import pickle
 from response_maker_nanov9_lib import *
 
 
-def main(testing=False, do_gen=True): 
+def main(testing=False, do_gen=True, client=None): 
+    
+    prependstr = "root://xcache/"
+    filedir = "samples/"
 
+    eras_data = [
+        'UL16NanoAOD', 
+        'UL16NanoAODAPV', 
+        'UL17NanoAOD', 
+        'UL18NanoAOD'
+           ]
+    eras_mc = [
+        'UL16NanoAODv9', 
+        'UL17NanoAODv9', 
+        'UL18NanoAODv9'
+    ]
+    
+    
     if not testing: 
         nworkers = 8
         chunksize = 1000000
@@ -26,74 +42,65 @@ def main(testing=False, do_gen=True):
         nworkers = 1
         chunksize = 10
         maxchunks = 1
-    
-    
     fileset = {}
-    if do_gen:
-        eras = [
-            'UL16NanoAOD', 
-            'UL16NanoAODAPV', 
-            'UL17NanoAOD', 
-            'UL18NanoAOD'
-               ]
-        htbins = ['100to200', '200to400', '400to600', '600to800', '800to1200', '1200to2500', '2500toInf']
-        filestr = '/mnt/data/cms/store/mc/RunIISummer20%sv9/DYJetsToLL_M-50_HT-%s_TuneCP5_PSweights_13TeV-madgraphMLM-pythia8/NANOAODSIM/*/*/*.root'
-    
-        for era in eras: 
-            for htbin in htbins : 
-                infiles = glob.glob(filestr % (era, htbin) )
-                if testing: 
-                    infiles = infiles[0:2]
-                binname = era+htbin
-                if binname not in fileset:
-                    fileset[binname] = []
-                fileset[binname] = fileset[binname] + [*infiles]
+    if not testing: 
+        
+        if do_gen:
+
+            dy_mc_filestr = "DYJetsToLL_M-50_HT_TuneCP5_PSweights_13TeV-madgraphMLM-pythia8_%s_files.txt"
+
+            for era in eras_mc: 
+                filename = filedir + dy_mc_filestr % (era)
+                with open(filename) as f:
+                    dy_mc_files = [prependstr + i.rstrip() for i in f.readlines()]
+                    fileset[era] = dy_mc_files
+        else: 
+            datasets_data = [
+                'SingleElectron_UL2016APV',
+                'SingleElectron_UL2016',
+                'SingleElectron_UL2017',
+                'EGamma_UL2018',
+                'SingleMuon_UL2016APV',
+                'SingleMuon_UL2016',
+                'SingleMuon_UL2017',
+                'SingleMuon_UL2018',
+            ]
+
+            for dataset in datasets_data: 
+                filename = filedir + dataset + '_NanoAODv9_files.txt'
+                with open(filename) as f:
+                    data_files = [prependstr + i.rstrip() for i in f.readlines()]
+                    fileset[dataset] = data_files
+    else: 
+        if do_gen:
+            fileset["Test"] = [prependstr + "/store/mc/RunIISummer20UL18NanoAODv9/DYJetsToLL_M-50_HT-1200to2500_TuneCP5_PSweights_13TeV-madgraphMLM-pythia8/NANOAODSIM/106X_upgrade2018_realistic_v16_L1v1-v1/120000/26793660-5D04-C24B-813E-3C1744C84D2D.root"]
+        else: 
+            fileset["Test"] = [prependstr + "/store/data/Run2018A/SingleMuon/NANOAOD/UL2018_MiniAODv2_NanoAODv9_GT36-v1/2820000/FF8A3CD2-3F51-7A43-B56C-7F7B7B3158E3.root"]
+
+                    
                 
-    else :
-        eras = [ 
-            'Run2016B',  'Run2016C',  'Run2016D',  'Run2016E',  'Run2016F',  'Run2016G',  'Run2016H',  
-            'Run2017B',  'Run2017C',  'Run2017D',  'Run2017E',  'Run2017F',  
-            'Run2018A',  'Run2018B',  'Run2018C',  'Run2018D'
-        ]
-        filestr1 = '/mnt/data/cms/store/data/%s/SingleMuon/NANOAOD/*/*/*.root'
-        filestr2 = '/mnt/data/cms/store/data/%s/SingleElectron/NANOAOD/*/*/*.root'
-        filestr3 = '/mnt/data/cms/store/data/%s/EGamma/NANOAOD/*/*/*.root'
+    if client == None or testing == True:         
+        run = processor.Runner(
+            executor = processor.FuturesExecutor(compression=None, workers=nworkers),
+            schema=NanoAODSchema,
+            chunksize=chunksize,
+            maxchunks=maxchunks
+        )
+    else: 
+        run = processor.Runner(
+            executor = processor.DaskExecutor(client=client),
+            schema=NanoAODSchema,
+            chunksize=chunksize,
+            maxchunks=maxchunks
+        )
         
-        for era in eras:
-            muinfiles = glob.glob( filestr1 % (era) )
-            e1infiles = glob.glob( filestr2 % (era) )
-            e2infiles = glob.glob( filestr3 % (era) )
-            if testing:
-                filestr1 = filestr1[0:2]
-                filestr2 = filestr2[0:2]
-                filestr3 = filestr3[0:2]
-            if era not in fileset:
-                fileset[era] = []
-            fileset[era] = fileset[era] + [*muinfiles] + [*el1infiles] + [*el2infiles]
-        
-
-    #print("Processing files ")
-    #for era,files in fileset.items():
-    #    print(era)
-    #    for file in files:
-    #        print(file)
-
-
-
-    tstart = time.time() 
-
-    run = processor.Runner(
-        executor = processor.FuturesExecutor(compression=None, workers=nworkers),
-        schema=NanoAODSchema,
-        chunksize=chunksize,
-        maxchunks=maxchunks
-    )
-
     output = run(
         fileset,
         "Events",
         processor_instance=QJetMassProcessor(do_gen=do_gen),
     )
+
+        
     
     if do_gen:
         fname_out = 'qjetmass_zjets_gen.pkl'
