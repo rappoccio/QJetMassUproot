@@ -16,7 +16,7 @@ import pickle
 from response_maker_nanov9_lib import *
 
 
-def main(testing=False, do_gen=True, client=None): 
+def response_maker_nanov9(testing=False, do_gen=True, client=None): 
     
     prependstr = "root://xcache/"
     filedir = "samples/"
@@ -108,8 +108,3 @@ def main(testing=False, do_gen=True, client=None):
         fname_out = 'qjetmass_zjets_reco.pkl'
     with open(fname_out, "wb") as f:
         pickle.dump( output, f )
-
-
-    
-if __name__ == "__main__":
-    main()
