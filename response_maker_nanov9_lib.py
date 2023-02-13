@@ -64,10 +64,12 @@ class QJetMassProcessor(processor.ProcessorABC):
         
         
         ### Plots to be unfolded
-        h_ptjet_mjet_u_gen = hist.Hist(dataset_axis, pt_axis, mreco_axis, storage="weight", label="Counts")
-        h_ptjet_mjet_u_reco = hist.Hist(dataset_axis, pt_axis, mreco_axis, storage="weight", label="Counts")
-        h_ptjet_mjet_g_gen = hist.Hist(dataset_axis, pt_axis, mreco_axis, storage="weight", label="Counts")
-        h_ptjet_mjet_g_reco = hist.Hist(dataset_axis, pt_axis, mreco_axis, storage="weight", label="Counts")
+        h_ptjet_mjet_u_reco = hist.Hist(dataset_axis, ptreco_axis, mreco_axis, storage="weight", label="Counts")
+        h_ptjet_mjet_g_reco = hist.Hist(dataset_axis, ptreco_axis, mreco_axis, storage="weight", label="Counts")
+        ### Plots for comparison
+        h_ptjet_mjet_u_gen = hist.Hist(dataset_axis, ptgen_axis, mgen_axis, storage="weight", label="Counts")        
+        h_ptjet_mjet_g_gen = hist.Hist(dataset_axis, ptgen_axis, mgen_axis, storage="weight", label="Counts")
+        
         
         ### Plots to get JMR and JMS in MC
         h_m_u_jet_reco_over_gen = hist.Hist(dataset_axis, ptgen_axis, mgen_axis, frac_axis, storage="weight", label="Counts")
@@ -311,17 +313,17 @@ class QJetMassProcessor(processor.ProcessorABC):
         weights = weights[final_selection]
         z_reco = z_reco[final_selection]
         reco_jet = reco_jet[final_selection]
-        self.hists["ptjet_mjet_u_reco"].fill( dataset=dataset, pt=reco_jet.pt, mreco=reco_jet.mass, weight=weights )
-        self.hists["ptjet_mjet_g_reco"].fill( dataset=dataset, pt=reco_jet.pt, mreco=reco_jet.msoftdrop, weight=weights )
+        self.hists["ptjet_mjet_u_reco"].fill( dataset=dataset, ptreco=reco_jet.pt, mreco=reco_jet.mass, weight=weights )
+        self.hists["ptjet_mjet_g_reco"].fill( dataset=dataset, ptreco=reco_jet.pt, mreco=reco_jet.msoftdrop, weight=weights )
         
         if self.do_gen:
             z_gen = z_gen[final_selection]
             gen_jet = gen_jet[final_selection]
             groomed_gen_jet = groomed_gen_jet[final_selection]
 
-            #### NOTE: This is really the "mreco" (coarse) binning, not a mistake or typeo. 
-            self.hists["ptjet_mjet_u_gen"].fill( dataset=dataset, pt=gen_jet.pt, mreco=gen_jet.mass, weight=weights )
-            self.hists["ptjet_mjet_g_gen"].fill( dataset=dataset, pt=gen_jet.pt, mreco=groomed_gen_jet.mass, weight=weights )
+
+            self.hists["ptjet_mjet_u_gen"].fill( dataset=dataset, ptgen=gen_jet.pt, mgen=gen_jet.mass, weight=weights )
+            self.hists["ptjet_mjet_g_gen"].fill( dataset=dataset, ptgen=gen_jet.pt, mgen=groomed_gen_jet.mass, weight=weights )
             
             self.hists["drjet_reco_gen"].fill(dataset=dataset, dr=reco_jet.delta_r(gen_jet), weight=weights)
             
