@@ -126,6 +126,34 @@ class QJetMassProcessor(processor.ProcessorABC):
         if dataset not in self.hists["cutflow"]:
             self.hists["cutflow"][dataset] = defaultdict(int)
         
+        
+        
+        #####################################
+        ### Initialize selection
+        #####################################
+        selection = PackedSelection()
+        
+        
+         
+        #####################################
+        ### Trigger selection for data
+        #####################################       
+        if not self.do_gen:
+            if "UL2016" in dataset: 
+                trigsel = events.HLT.IsoMu24 | events.HLT.Ele27_WPTight_Gsf | events.HLT.Photon175
+            elif "UL2017" in dataset:
+                trigsel = events.HLT.IsoMu27 | events.HLT.Ele35_WPTight_Gsf | events.HLT.Photon200
+            elif "UL2018" in dataset:
+                trigsel = events.HLT.IsoMu24 | events.HLT.Ele32_WPTight_Gsf | events.HLT.Photon200
+            elif "Test" in dataset: 
+                trigsel = events.HLT.IsoMu24 | events.HLT.Ele32_WPTight_Gsf | events.HLT.Photon200
+            else:
+                raise Exception("Dataset is incorrect, should have 2016, 2017, 2018: ", dataset)
+            selection.add("trigsel", trigsel)    
+        else:
+            trigsel = np.full( len(events), True)
+            selection.add("trigsel", trigsel)
+        
         #####################################
         ### Remove events with very large gen weights (>2 sigma)
         #####################################
@@ -145,13 +173,11 @@ class QJetMassProcessor(processor.ProcessorABC):
             #####################################
             weights = events["LHEWeight"].originalXWGTUP
         else:
-            weights = np.ones_like( events )
+            weights = np.full( len( events ), 1.0 )
         
-        #####################################
-        ### Initialize selection
-        #####################################
-        selection = PackedSelection()
         
+
+
         
         #####################################
         #####################################
@@ -259,9 +285,9 @@ class QJetMassProcessor(processor.ProcessorABC):
         ### Convenience selection that has all gen cuts and reco preselection
         #####################################
         if self.do_gen:
-            reco_preselection = selection.all("all_gen_cuts", "z_reco_pt", "oneRecoJet", "jet_genjet_matching_cuts")
+            reco_preselection = selection.all("all_gen_cuts", "twoReco_leptons", "z_reco_pt", "oneRecoJet", "jet_genjet_matching_cuts")
         else:
-            reco_preselection = selection.all("z_reco_pt", "oneRecoJet")
+            reco_preselection = selection.all("trigsel", "twoReco_leptons", "z_reco_pt", "oneRecoJet")
         selection.add("reco_preselection", reco_preselection)
 
         

@@ -39,7 +39,7 @@ def response_maker_nanov9(testing=False, do_gen=True, client=None, prependstr = 
         maxchunks = None
     else:
         nworkers = 1
-        chunksize = 10
+        chunksize = 1000
         maxchunks = 1
     fileset = {}
     if not testing: 
