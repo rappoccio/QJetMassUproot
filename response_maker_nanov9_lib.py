@@ -150,9 +150,6 @@ class QJetMassProcessor(processor.ProcessorABC):
             else:
                 raise Exception("Dataset is incorrect, should have 2016, 2017, 2018: ", dataset)
             selection.add("trigsel", trigsel)    
-        else:
-            trigsel = np.full( len(events), True)
-            selection.add("trigsel", trigsel)
         
         #####################################
         ### Remove events with very large gen weights (>2 sigma)
