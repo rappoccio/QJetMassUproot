@@ -51,7 +51,7 @@ def response_maker_nanov9(testing=False, do_gen=True, client=None, prependstr = 
             for era in eras_mc: 
                 filename = filedir + dy_mc_filestr % (era)
                 with open(filename) as f:
-                    dy_mc_files = [prependstr + i.rstrip() for i in f.readlines()]
+                    dy_mc_files = [prependstr + i.rstrip() for i in f.readlines() if i[0] != "#" ]
                     fileset[era] = dy_mc_files
         else: 
             datasets_data = [
@@ -68,7 +68,7 @@ def response_maker_nanov9(testing=False, do_gen=True, client=None, prependstr = 
             for dataset in datasets_data: 
                 filename = filedir + dataset + '_NanoAODv9_files.txt'
                 with open(filename) as f:
-                    data_files = [prependstr + i.rstrip() for i in f.readlines()]
+                    data_files = [prependstr + i.rstrip() for i in f.readlines()  if i[0] != "#" ]
                     fileset[dataset] = data_files
     else: 
         if do_gen:
