@@ -83,14 +83,16 @@ def response_maker_nanov9(testing=False, do_gen=True, client=None, prependstr = 
             executor = processor.FuturesExecutor(compression=None, workers=nworkers),
             schema=NanoAODSchema,
             chunksize=chunksize,
-            maxchunks=maxchunks
+            maxchunks=maxchunks,
+            skipbadfiles=True
         )
     else: 
         run = processor.Runner(
             executor = processor.DaskExecutor(client=client),
             schema=NanoAODSchema,
             chunksize=chunksize,
-            maxchunks=maxchunks
+            maxchunks=maxchunks,
+            skipbadfiles=True
         )
         
     output = run(
