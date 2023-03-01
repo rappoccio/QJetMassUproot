@@ -68,13 +68,15 @@ def get_z_reco_selection( events, selection, ptcut_e, ptcut_m):
                   (ak.num(events.Electron) == 2) & 
                   (ak.all(events.Electron.pt > ptcut_e, axis=1)) & 
                   (ak.all( np.abs(events.Electron.eta) < 2.5, axis=1)) & 
-                  (ak.sum(events.Electron.charge, axis=1) == 0)
+                  (ak.sum(events.Electron.charge, axis=1) == 0) &
+                  ()
                  )
     selection.add("twoReco_mm", 
                   (ak.num(events.Muon) == 2) & 
                   (ak.all(events.Muon.pt > ptcut_m, axis=1)) & 
                   (ak.all( np.abs(events.Muon.eta) < 2.5, axis=1)) & 
-                  (ak.sum(events.Muon.charge, axis=1) == 0)
+                  (ak.sum(events.Muon.charge, axis=1) == 0) &
+                  
                  )
     selection.add("twoReco_leptons",
                   selection.all("twoReco_ee") | selection.all("twoReco_mm")

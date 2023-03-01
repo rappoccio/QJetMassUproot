@@ -51,6 +51,8 @@ class QJetMassProcessor(processor.ProcessorABC):
         h_ptjet_gen_pre = hist.Hist(dataset_axis, pt_axis, storage="weight", label="Counts")
         h_ptjet_reco_over_gen = hist.Hist(dataset_axis, frac_axis, storage="weight", label="Counts")
         h_drjet_reco_gen = hist.Hist(dataset_axis, dr_fine_axis, storage="weight", label="Counts")
+        h_ptz_gen = hist.Hist(dataset_axis, pt_axis, storage="weight", label="Counts")
+        h_ptz_reco = hist.Hist(dataset_axis, pt_axis, storage="weight", label="Counts")        
         h_mz_gen = hist.Hist(dataset_axis, zmass_axis, storage="weight", label="Counts")
         h_mz_reco = hist.Hist(dataset_axis, zmass_axis, storage="weight", label="Counts")
         h_mz_reco_over_gen = hist.Hist(dataset_axis, frac_axis, storage="weight", label="Counts")
@@ -95,8 +97,10 @@ class QJetMassProcessor(processor.ProcessorABC):
             "ptjet_mjet_g_reco":h_ptjet_mjet_g_reco, 
             "ptjet_reco_over_gen":h_ptjet_reco_over_gen,
             "drjet_reco_gen":h_drjet_reco_gen,
+            "ptz_gen":h_ptz_gen,
+            "ptz_reco":h_ptz_reco,
             "mz_gen":h_mz_gen,
-            "mz_reco":h_mz_reco,
+            "mz_reco":h_mz_reco,            
             "mz_reco_over_gen":h_mz_reco_over_gen,
             "dr_z_jet_gen":h_dr_z_jet_gen,
             "dr_z_jet_reco":h_dr_z_jet_reco,            
@@ -197,7 +201,11 @@ class QJetMassProcessor(processor.ProcessorABC):
             z_gen = get_z_gen_selection(events, selection, self.lepptcuts[0], self.lepptcuts[1] )
             z_gen_cuts = ak.where( selection.all("twoGen_leptons") & ~ak.is_none(z_gen),  z_gen.pt > 90., False )
             selection.add("z_gen_pt", z_gen_cuts)
-
+            self.hists["ptz_gen"].fill(dataset=dataset,
+                                      pt=z_gen[zgen_ngenjet_sel].pt,
+                                      weight=weights[zgen_ngenjet_sel])
+            
+            
             #####################################
             ### Get Gen Jet
             #####################################
@@ -217,17 +225,17 @@ class QJetMassProcessor(processor.ProcessorABC):
             #####################################
 
             self.hists["mz_gen"].fill(dataset=dataset,
-                                      mass=z_gen[zgen_ngenjet_sel].mass,
-                                      weight=weights[zgen_ngenjet_sel])
+                                      mass=z_gen[zgen_ngenjet_sel & dphi_gen_sel & z_pt_asym_gen_sel].mass,
+                                      weight=weights[zgen_ngenjet_sel & dphi_gen_sel & z_pt_asym_gen_sel])
             self.hists["njet_gen"].fill(dataset=dataset,
-                                        n=ak.num(events[zgen_ngenjet_sel].GenJetAK8),
-                                        weight = weights[zgen_ngenjet_sel] )
-            self.hists["dphi_z_jet_gen"].fill(dataset=dataset, dphi=z_gen[zgen_ngenjet_sel].delta_phi(gen_jet[zgen_ngenjet_sel]), 
-                                       weight=weights[zgen_ngenjet_sel])
+                                        n=ak.num(events[zgen_ngenjet_sel & dphi_gen_sel & z_pt_asym_gen_sel].GenJetAK8),
+                                        weight = weights[zgen_ngenjet_sel & dphi_gen_sel & z_pt_asym_gen_sel] )
+            self.hists["dphi_z_jet_gen"].fill(dataset=dataset, dphi=dphi_gen_sel[zgen_ngenjet_sel & z_pt_asym_gen_sel], 
+                                       weight=weights[zgen_ngenjet_sel & z_pt_asym_gen_sel])
             self.hists["dr_z_jet_gen"].fill(dataset=dataset, dr=z_gen[zgen_ngenjet_sel].delta_r(gen_jet[zgen_ngenjet_sel]), 
                                        weight=weights[zgen_ngenjet_sel])
-            self.hists["ptasym_z_jet_gen"].fill(dataset=dataset, frac=z_pt_asym_gen[zgen_ngenjet_sel], 
-                                       weight=weights[zgen_ngenjet_sel])
+            self.hists["ptasym_z_jet_gen"].fill(dataset=dataset, frac=z_pt_asym_gen[zgen_ngenjet_sel & dphi_gen_sel], 
+                                       weight=weights[zgen_ngenjet_sel & dphi_gen_sel])
 
             #####################################
             ### Get gen subjets 
