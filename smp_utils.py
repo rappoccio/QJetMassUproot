@@ -69,14 +69,16 @@ def get_z_reco_selection( events, selection, ptcut_e, ptcut_m):
                   (ak.all(events.Electron.pt > ptcut_e, axis=1)) & 
                   (ak.all( np.abs(events.Electron.eta) < 2.5, axis=1)) & 
                   (ak.sum(events.Electron.charge, axis=1) == 0) &
-                  ()
+                  (ak.all(events.Electron.pfRelIso03_all < 0.2, axis=1)) &
+                  (ak.all(events.Electron.cutBased > 0, axis=1) )
                  )
     selection.add("twoReco_mm", 
                   (ak.num(events.Muon) == 2) & 
                   (ak.all(events.Muon.pt > ptcut_m, axis=1)) & 
                   (ak.all( np.abs(events.Muon.eta) < 2.5, axis=1)) & 
                   (ak.sum(events.Muon.charge, axis=1) == 0) &
-                  
+                  (ak.all(events.Muon.pfRelIso03_all < 0.2, axis=1)) &
+                  (ak.all(events.Muon.looseId > 0, axis=1))
                  )
     selection.add("twoReco_leptons",
                   selection.all("twoReco_ee") | selection.all("twoReco_mm")
@@ -118,13 +120,11 @@ def get_groomed_jet( jet, subjets , verbose = False):
     return total, sel
 
     
-def find_opposite( a, coll, dphimin = 1, verbose=False ):
+def get_dphi( a, coll, verbose=False ):
     '''
-    Find the highest-pt object in coll in the hemisphere opposite a,
-    defined by delta phi being > dphimin (default 1). 
-    Return it and the selection boolean vector. 
+    Find the highest-pt object in coll and return the highest pt,
+    as well as the delta phi to a. 
     '''
     combs = ak.cartesian( (a, coll), axis=1 )
     dphi = np.abs(combs['0'].delta_phi(combs['1']))
-    sel = dphi > dphimin
-    return ak.firsts( combs['1'] ), ak.firsts(sel)
+    return ak.firsts( combs['1'] ), ak.firsts(dphi)

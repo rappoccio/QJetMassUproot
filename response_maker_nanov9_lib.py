@@ -121,7 +121,8 @@ class QJetMassProcessor(processor.ProcessorABC):
     
     @property
     def accumulator(self):
-        return self._histos
+        #return self._histos
+        return self.hists
 
     
     # we will receive a NanoEvents instead of a coffea DataFrame
@@ -135,7 +136,7 @@ class QJetMassProcessor(processor.ProcessorABC):
         #####################################
         ### Initialize selection
         #####################################
-        selection = PackedSelection()
+        sel = PackedSelection()
         
         
          
@@ -153,7 +154,7 @@ class QJetMassProcessor(processor.ProcessorABC):
                 trigsel = events.HLT.IsoMu24 | events.HLT.Ele32_WPTight_Gsf | events.HLT.Photon200
             else:
                 raise Exception("Dataset is incorrect, should have 2016, 2017, 2018: ", dataset)
-            selection.add("trigsel", trigsel)    
+            sel.add("trigsel", trigsel)    
         
         #####################################
         ### Remove events with very large gen weights (>2 sigma)
@@ -191,51 +192,72 @@ class QJetMassProcessor(processor.ProcessorABC):
             #####################################
             ### Events with at least one gen jet
             #####################################
-            selection.add("oneGenJet", 
+            sel.add("oneGenJet", 
                   ak.sum( (events.GenJetAK8.pt > 120.) & (np.abs(events.GenJetAK8.eta) < 2.5), axis=1 ) >= 1
             )
 
             #####################################
             ### Make gen-level Z
             #####################################
-            z_gen = get_z_gen_selection(events, selection, self.lepptcuts[0], self.lepptcuts[1] )
-            z_gen_cuts = ak.where( selection.all("twoGen_leptons") & ~ak.is_none(z_gen),  z_gen.pt > 90., False )
-            selection.add("z_gen_pt", z_gen_cuts)
-            self.hists["ptz_gen"].fill(dataset=dataset,
-                                      pt=z_gen[zgen_ngenjet_sel].pt,
-                                      weight=weights[zgen_ngenjet_sel])
+            z_gen = get_z_gen_selection(events, sel, self.lepptcuts[0], self.lepptcuts[1] )
+            z_ptcut_gen = ak.where( sel.all("twoGen_leptons") & ~ak.is_none(z_gen),  z_gen.pt > 90., False )
+            z_mcut_gen = ak.where( sel.all("twoGen_leptons") & ~ak.is_none(z_gen),  (z_gen.mass > 80.) & (z_gen.mass < 110), False )
+            sel.add("z_ptcut_gen", z_ptcut_gen)
+            sel.add("z_mcut_gen", z_mcut_gen)
             
             
             #####################################
             ### Get Gen Jet
             #####################################
-            gen_jet, dphi_gen_sel = find_opposite( z_gen, events.GenJetAK8 )
-            zgen_ngenjet_sel = selection.require(z_gen_pt=True,oneGenJet=True)
+            gen_jet, z_jet_dphi_gen = get_dphi( z_gen, events.GenJetAK8 )
+            z_jet_dr_gen = gen_jet.delta_r(z_gen)
 
             #####################################
             ### Gen event topology selection
             #####################################        
-            selection.add("z_gen_jet_dphi", dphi_gen_sel)
             z_pt_asym_gen = np.abs(z_gen.pt - gen_jet.pt) / (z_gen.pt + gen_jet.pt)
-            z_pt_asym_gen_sel = z_pt_asym_gen < 0.3
-            selection.add("z_pt_asym_gen_sel", z_pt_asym_gen_sel)
+            z_pt_asym_sel_gen =  z_pt_asym_gen < 0.3
+            z_jet_dphi_sel_gen = z_jet_dphi_gen > np.pi * 0.5
+            sel.add("z_jet_dphi_sel_gen", z_jet_dphi_sel_gen)
+            sel.add("z_pt_asym_sel_gen", z_pt_asym_sel_gen)
 
             #####################################
-            ### Make gen plots with a Z candidate and at least one jet
+            ### Make gen plots with Z and jet cuts
             #####################################
-
+            kinsel_gen = sel.require(twoGen_leptons=True,oneGenJet=True,z_ptcut_gen=True,z_mcut_gen=True)
+            sel.add("kinsel_gen", kinsel_gen)
+            toposel_gen = sel.require(z_pt_asym_sel_gen=True,z_jet_dphi_sel_gen=True)
+            sel.add("toposel_gen", toposel_gen)
+            self.hists["ptz_gen"].fill(dataset=dataset,
+                                      pt=z_gen[kinsel_gen].pt,
+                                      weight=weights[kinsel_gen])
             self.hists["mz_gen"].fill(dataset=dataset,
-                                      mass=z_gen[zgen_ngenjet_sel & dphi_gen_sel & z_pt_asym_gen_sel].mass,
-                                      weight=weights[zgen_ngenjet_sel & dphi_gen_sel & z_pt_asym_gen_sel])
+                                      mass=z_gen[kinsel_gen].mass,
+                                      weight=weights[kinsel_gen])
             self.hists["njet_gen"].fill(dataset=dataset,
-                                        n=ak.num(events[zgen_ngenjet_sel & dphi_gen_sel & z_pt_asym_gen_sel].GenJetAK8),
-                                        weight = weights[zgen_ngenjet_sel & dphi_gen_sel & z_pt_asym_gen_sel] )
-            self.hists["dphi_z_jet_gen"].fill(dataset=dataset, dphi=dphi_gen_sel[zgen_ngenjet_sel & z_pt_asym_gen_sel], 
-                                       weight=weights[zgen_ngenjet_sel & z_pt_asym_gen_sel])
-            self.hists["dr_z_jet_gen"].fill(dataset=dataset, dr=z_gen[zgen_ngenjet_sel].delta_r(gen_jet[zgen_ngenjet_sel]), 
-                                       weight=weights[zgen_ngenjet_sel])
-            self.hists["ptasym_z_jet_gen"].fill(dataset=dataset, frac=z_pt_asym_gen[zgen_ngenjet_sel & dphi_gen_sel], 
-                                       weight=weights[zgen_ngenjet_sel & dphi_gen_sel])
+                                        n=ak.num(events[kinsel_gen].GenJetAK8),
+                                        weight = weights[kinsel_gen] )
+
+            # There are None elements in these arrays when the reco_jet is not found.
+            # To make "N-1" plots, we need to reduce the size and remove the Nones
+            # otherwise the functions will throw exception.
+            weights2 = weights[ ~ak.is_none(gen_jet)]
+            z_jet_dr_gen2 = z_jet_dr_gen[ ~ak.is_none(gen_jet)]
+            z_pt_asym_sel_gen2 = z_pt_asym_sel_gen[~ak.is_none(gen_jet)]
+            z_pt_asym_gen2 = z_pt_asym_gen[~ak.is_none(gen_jet)]
+            z_jet_dphi_gen2 = z_jet_dphi_gen[~ak.is_none(gen_jet)]
+            z_jet_dphi_sel_gen2 = z_jet_dphi_sel_gen[~ak.is_none(gen_jet)]
+
+            # Making N-1 plots for these three
+            self.hists["dr_z_jet_gen"].fill( dataset=dataset,
+                                              dr=z_jet_dr_gen2[z_pt_asym_sel_gen2],
+                                              weight=weights2[z_pt_asym_sel_gen2])
+            self.hists["dphi_z_jet_gen"].fill(dataset=dataset, 
+                                               dphi=z_jet_dphi_gen2[z_pt_asym_sel_gen2], 
+                                               weight=weights2[z_pt_asym_sel_gen2])
+            self.hists["ptasym_z_jet_gen"].fill(dataset=dataset, 
+                                                 frac=z_pt_asym_gen2[z_jet_dphi_sel_gen2],
+                                                 weight=weights2[z_jet_dphi_sel_gen2])
 
             #####################################
             ### Get gen subjets 
@@ -246,111 +268,114 @@ class QJetMassProcessor(processor.ProcessorABC):
             #####################################
             ### Convenience selection that has all gen cuts
             #####################################
-            all_gen_cuts = selection.all("z_gen_pt", "z_gen_jet_dphi", "z_pt_asym_gen_sel")
-            selection.add("all_gen_cuts", all_gen_cuts)
+            allsel_gen = sel.all("kinsel_gen", "toposel_gen" )
+            sel.add("allsel_gen", allsel_gen)
 
             #####################################
             ### Plots for gen jets and subjets
             #####################################
             self.hists["ptjet_gen_pre"].fill(dataset=dataset, 
-                                         pt=gen_jet[all_gen_cuts].pt, 
-                                         weight=weights[all_gen_cuts])
+                                         pt=gen_jet[allsel_gen].pt, 
+                                         weight=weights[allsel_gen])
             self.hists["dr_gen_subjet"].fill(dataset=dataset,
-                                             dr=groomed_gen_jet[all_gen_cuts].delta_r(gen_jet[all_gen_cuts]),
-                                             weight=weights[all_gen_cuts])
+                                             dr=groomed_gen_jet[allsel_gen].delta_r(gen_jet[allsel_gen]),
+                                             weight=weights[allsel_gen])
                         
             
         #####################################
         ### Make reco-level Z
         #####################################
-        z_reco = get_z_reco_selection(events, selection, self.lepptcuts[0], self.lepptcuts[1])
-        z_reco_cuts = ak.where( selection.all("twoReco_leptons") & ~ak.is_none(z_reco), z_reco.pt > 90., False )
-        selection.add("z_reco_pt", z_reco_cuts)
-
-
+        z_reco = get_z_reco_selection(events, sel, self.lepptcuts[0], self.lepptcuts[1])
+        z_ptcut_reco = z_reco.pt > 90.
+        z_mcut_reco = (z_reco.mass > 80.) & (z_reco.mass < 110.)
+        sel.add("z_ptcut_reco", z_ptcut_reco)
+        sel.add("z_mcut_reco", z_mcut_reco)
+        
         #####################################
         ### Reco jet selection
         #####################################
         recojets = events.FatJet
-        selection.add("oneRecoJet", 
+        sel.add("oneRecoJet", 
              ak.sum( (events.FatJet.pt > 170.) & (np.abs(events.FatJet.eta) < 2.5), axis=1 ) >= 1
         )
-        self.hists["njet_reco"].fill(dataset=dataset, n=ak.num(recojets,axis=1))
-        
-        # Find reco jet closest to the gen jet
-        if self.do_gen:
-            reco_jet,reco_jet_dr = find_closest_dr( gen_jet, recojets, verbose=False)
-            jet_matching_cuts = np.logical_not( ak.is_none(reco_jet) ) & (reco_jet_dr < 0.2)
-            selection.add("jet_genjet_matching_cuts", jet_matching_cuts)
-        else :
-            reco_jet, dphi_reco_sel = find_opposite( z_reco, events.FatJet )
-            
-
-        #####################################
-        ### Convenience selection that has all gen cuts and reco preselection
-        #####################################
-        if self.do_gen:
-            reco_preselection = selection.all("all_gen_cuts", "twoReco_leptons", "z_reco_pt", "oneRecoJet", "jet_genjet_matching_cuts")
-        else:
-            reco_preselection = selection.all("trigsel", "twoReco_leptons", "z_reco_pt", "oneRecoJet")
-        selection.add("reco_preselection", reco_preselection)
-
         
         #####################################
-        ### Reco event topology selection
+        # Find reco jet opposite the reco Z
         #####################################
-        z_dphi_reco = z_reco.delta_phi( reco_jet )
-        z_dphi_reco_sel = np.abs(z_dphi_reco) > np.pi * 0.5
+        reco_jet, z_jet_dphi_reco = get_dphi( z_reco, events.FatJet )
+        z_jet_dr_reco = reco_jet.delta_r(z_reco)
+        z_jet_dphi_reco_values = z_jet_dphi_reco
+        
+        #####################################
+        ### Reco event topology sel
+        #####################################
+        z_jet_dphi_sel_reco = z_jet_dphi_reco > np.pi * 0.5
         z_pt_asym_reco = np.abs(z_reco.pt - reco_jet.pt) / (z_reco.pt + reco_jet.pt)
-        z_pt_asym_reco_sel = z_pt_asym_reco < 0.3
-        selection.add("z_dphi_reco_sel", z_dphi_reco_sel)
-        selection.add("z_pt_asym_reco_sel", z_pt_asym_reco_sel)
+        z_pt_asym_sel_reco = z_pt_asym_reco < 0.3
+        sel.add("z_jet_dphi_sel_reco", z_jet_dphi_sel_reco)
+        sel.add("z_pt_asym_sel_reco", z_pt_asym_sel_reco)
+
+        kinsel_reco = sel.require(twoReco_leptons=True,oneRecoJet=True,z_ptcut_reco=True,z_mcut_reco=True)
+        sel.add("kinsel_reco", kinsel_reco)
+        toposel_reco = sel.require(z_pt_asym_sel_reco=True,z_jet_dphi_sel_reco=True)
+        sel.add("toposel_reco", toposel_reco)
+
         
-        
-        #####################################
-        ### Make reco plots with a Z candidate and at least one jet. 
-        ### These use the event topology variables just defined and make a plot. 
-        #####################################
-        self.hists["mz_reco"].fill(dataset=dataset, mass=z_reco[reco_preselection].mass, 
-                                   weight=weights[reco_preselection])
+        # Note: Trigger is not applied in the MC, so this is 
+        # applying the full gen selection here to be in sync with rivet routine
+        if self.do_gen:
+            presel_reco = sel.all("allsel_gen", "kinsel_reco")
+        else:
+            presel_reco = sel.all("trigsel", "kinsel_reco")
+        allsel_reco = presel_reco & toposel_reco
+        sel.add("presel_reco", presel_reco)
+        sel.add("allsel_reco", allsel_reco)
+
+        self.hists["mz_reco"].fill(dataset=dataset, mass=z_reco[presel_reco].mass, 
+                                   weight=weights[presel_reco])
         if self.do_gen:
             self.hists["mz_reco_over_gen"].fill(dataset=dataset, 
-                                                frac=z_reco[reco_preselection].mass / z_gen[reco_preselection].mass, 
-                                                weight=weights[reco_preselection] )
-        self.hists["dr_z_jet_reco"].fill( dataset=dataset,dr=z_reco[reco_preselection].delta_r(reco_jet[reco_preselection]),
-                                         weight=weights[reco_preselection] )
-        self.hists["dphi_z_jet_reco"].fill(dataset=dataset, dphi=z_dphi_reco[reco_preselection], 
-                                           weight=weights[reco_preselection])
-        self.hists["ptasym_z_jet_reco"].fill(dataset=dataset, frac=z_pt_asym_reco[reco_preselection],
-                                             weight=weights[reco_preselection])
+                                                frac=z_reco[presel_reco].mass / z_gen[presel_reco].mass, 
+                                                weight=weights[presel_reco] )
 
-        #####################################
-        ### Convenience selection that has all cuts
-        #####################################
-        if self.do_gen:
-            final_selection =  selection.all("all_gen_cuts", "z_reco_pt", "oneGenJet", 
-                                             "jet_genjet_matching_cuts", "z_dphi_reco_sel", "z_pt_asym_reco_sel" )
-        else:
-            final_selection =  selection.all("z_reco_pt", "oneRecoJet", "z_dphi_reco_sel", "z_pt_asym_reco_sel" )
-
+        # There are None elements in these arrays when the reco_jet is not found.
+        # To make "N-1" plots, we need to reduce the size and remove the Nones
+        # otherwise the functions will throw exception.
+        weights3 = weights[ ~ak.is_none(reco_jet)]
+        presel_reco3 = presel_reco[~ak.is_none(reco_jet)]
+        z_jet_dr_reco3 = z_jet_dr_reco[ ~ak.is_none(reco_jet)]
+        z_pt_asym_sel_reco3 = z_pt_asym_sel_reco[~ak.is_none(reco_jet)]
+        z_pt_asym_reco3 = z_pt_asym_reco[~ak.is_none(reco_jet)]
+        z_jet_dphi_reco3 = z_jet_dphi_reco[~ak.is_none(reco_jet)]
+        z_jet_dphi_sel_reco3 = z_jet_dphi_sel_reco[~ak.is_none(reco_jet)]
+        
+        # Making N-1 plots for these three
+        self.hists["dr_z_jet_reco"].fill( dataset=dataset,
+                                          dr=z_jet_dr_reco3[presel_reco3 & z_pt_asym_sel_reco3],
+                                          weight=weights3[presel_reco3 & z_pt_asym_sel_reco3])
+        self.hists["dphi_z_jet_reco"].fill(dataset=dataset, 
+                                           dphi=z_jet_dphi_reco3[presel_reco3 & z_pt_asym_sel_reco3], 
+                                           weight=weights3[presel_reco3 & z_pt_asym_sel_reco3])
+        self.hists["ptasym_z_jet_reco"].fill(dataset=dataset, 
+                                             frac=z_pt_asym_reco3[presel_reco3 & z_jet_dphi_sel_reco3],
+                                             weight=weights3[presel_reco3 & z_jet_dphi_sel_reco3])
             
-        selection.add("final_selection", final_selection )
         
         #####################################
         ### Make final selection plots here
         #####################################
         
         # For convenience, finally reduce the size of the arrays at the end
-        weights = weights[final_selection]
-        z_reco = z_reco[final_selection]
-        reco_jet = reco_jet[final_selection]
+        weights = weights[allsel_reco]
+        z_reco = z_reco[allsel_reco]
+        reco_jet = reco_jet[allsel_reco]
         self.hists["ptjet_mjet_u_reco"].fill( dataset=dataset, ptreco=reco_jet.pt, mreco=reco_jet.mass, weight=weights )
         self.hists["ptjet_mjet_g_reco"].fill( dataset=dataset, ptreco=reco_jet.pt, mreco=reco_jet.msoftdrop, weight=weights )
         
         if self.do_gen:
-            z_gen = z_gen[final_selection]
-            gen_jet = gen_jet[final_selection]
-            groomed_gen_jet = groomed_gen_jet[final_selection]
+            z_gen = z_gen[allsel_reco]
+            gen_jet = gen_jet[allsel_reco]
+            groomed_gen_jet = groomed_gen_jet[allsel_reco]
 
 
             self.hists["ptjet_mjet_u_gen"].fill( dataset=dataset, ptgen=gen_jet.pt, mgen=gen_jet.mass, weight=weights )
@@ -376,8 +401,8 @@ class QJetMassProcessor(processor.ProcessorABC):
                                                mreco=reco_jet.msoftdrop, mgen=groomed_gen_jet.mass )
 
         
-        for name in selection.names:
-            self.hists["cutflow"][dataset][name] = selection.all(name).sum()
+        for name in sel.names:
+            self.hists["cutflow"][dataset][name] = sel.all(name).sum()
         
         return self.hists
 
