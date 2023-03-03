@@ -195,6 +195,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             sel.add("oneGenJet", 
                   ak.sum( (events.GenJetAK8.pt > 120.) & (np.abs(events.GenJetAK8.eta) < 2.5), axis=1 ) >= 1
             )
+            events.GenJetAK8 = events.GenJetAK8[(events.GenJetAK8.pt > 120.) & (np.abs(events.GenJetAK8.eta) < 2.5)]
 
             #####################################
             ### Make gen-level Z
@@ -221,6 +222,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             sel.add("z_jet_dphi_sel_gen", z_jet_dphi_sel_gen)
             sel.add("z_pt_asym_sel_gen", z_pt_asym_sel_gen)
 
+
             #####################################
             ### Make gen plots with Z and jet cuts
             #####################################
@@ -241,12 +243,12 @@ class QJetMassProcessor(processor.ProcessorABC):
             # There are None elements in these arrays when the reco_jet is not found.
             # To make "N-1" plots, we need to reduce the size and remove the Nones
             # otherwise the functions will throw exception.
-            weights2 = weights[ ~ak.is_none(gen_jet)]
-            z_jet_dr_gen2 = z_jet_dr_gen[ ~ak.is_none(gen_jet)]
-            z_pt_asym_sel_gen2 = z_pt_asym_sel_gen[~ak.is_none(gen_jet)]
-            z_pt_asym_gen2 = z_pt_asym_gen[~ak.is_none(gen_jet)]
-            z_jet_dphi_gen2 = z_jet_dphi_gen[~ak.is_none(gen_jet)]
-            z_jet_dphi_sel_gen2 = z_jet_dphi_sel_gen[~ak.is_none(gen_jet)]
+            weights2 = weights[ ~ak.is_none(gen_jet) & kinsel_gen]
+            z_jet_dr_gen2 = z_jet_dr_gen[ ~ak.is_none(gen_jet) & kinsel_gen]
+            z_pt_asym_sel_gen2 = z_pt_asym_sel_gen[~ak.is_none(gen_jet) & kinsel_gen]
+            z_pt_asym_gen2 = z_pt_asym_gen[~ak.is_none(gen_jet) & kinsel_gen]
+            z_jet_dphi_gen2 = z_jet_dphi_gen[~ak.is_none(gen_jet) & kinsel_gen]
+            z_jet_dphi_sel_gen2 = z_jet_dphi_sel_gen[~ak.is_none(gen_jet) & kinsel_gen]
 
             # Making N-1 plots for these three
             self.hists["dr_z_jet_gen"].fill( dataset=dataset,
@@ -294,7 +296,7 @@ class QJetMassProcessor(processor.ProcessorABC):
         #####################################
         ### Reco jet selection
         #####################################
-        recojets = events.FatJet
+        recojets = events.FatJet[(events.FatJet.pt > 170.) & (np.abs(events.FatJet.eta) < 2.5)]
         sel.add("oneRecoJet", 
              ak.sum( (events.FatJet.pt > 170.) & (np.abs(events.FatJet.eta) < 2.5), axis=1 ) >= 1
         )

@@ -10,6 +10,13 @@ from coffea.nanoevents import NanoEventsFactory, NanoAODSchema, BaseSchema
 from collections import defaultdict
 
 
+class util_constants: 
+    def __init__(self):
+        self.mclabels = [ "UL16NanoAODv9", "UL17NanoAODv9", "UL18NanoAODv9"]
+        lumi = [35920,41530,59740]
+        self.z_xs = 6077.22
+        self.lumi = dict( zip( self.mclabels, lumi ) )
+
 class util_binning :
     '''
     Class to implement the binning schema for jet mass and pt 2d unfolding. The gen-level mass is twice as fine. 
