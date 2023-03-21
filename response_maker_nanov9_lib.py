@@ -62,6 +62,8 @@ class QJetMassProcessor(processor.ProcessorABC):
         h_dphi_z_jet_reco = hist.Hist(dataset_axis, dphi_axis, storage="weight", label="Counts")
         h_ptasym_z_jet_gen = hist.Hist(dataset_axis, frac_axis, storage="weight", label="Counts")
         h_ptasym_z_jet_reco = hist.Hist(dataset_axis, frac_axis, storage="weight", label="Counts")
+        h_ptfrac_z_jet_gen = hist.Hist(dataset_axis, ptreco_axis, frac_axis, storage="weight", label="Counts")
+        h_ptfrac_z_jet_reco = hist.Hist(dataset_axis, ptreco_axis, frac_axis, storage="weight", label="Counts")
         h_dr_gen_subjet = hist.Hist(dataset_axis, dr_axis, storage="weight", label="Counts")
         
         
@@ -108,6 +110,8 @@ class QJetMassProcessor(processor.ProcessorABC):
             "dphi_z_jet_reco":h_dphi_z_jet_reco,
             "ptasym_z_jet_gen":h_ptasym_z_jet_gen,
             "ptasym_z_jet_reco":h_ptasym_z_jet_reco,
+            "ptfrac_z_jet_gen":h_ptfrac_z_jet_gen,
+            "ptfrac_z_jet_reco":h_ptfrac_z_jet_reco,
             "m_u_jet_reco_over_gen":h_m_u_jet_reco_over_gen,
             "m_g_jet_reco_over_gen":h_m_g_jet_reco_over_gen,
             "dr_gen_subjet":h_dr_gen_subjet,
@@ -131,6 +135,20 @@ class QJetMassProcessor(processor.ProcessorABC):
         if dataset not in self.hists["cutflow"]:
             self.hists["cutflow"][dataset] = defaultdict(int)
         
+        '''
+        IOV = ('2016APV' if any(re.findall(r'HIPM', dataset))
+               else '2018' if any(re.findall(r'UL2018', dataset))
+               else '2017' if any(re.findall(r'UL2017', dataset))
+               else '2016')
+        
+        if (isMC):
+            era = None
+        else:
+            era = 'Run'+((re.search('Run2016(.*)HIPM', dataset)).group(1)[:-1] if IOV == '2016APV'
+                   else (re.search('Run'+str(IOV)+'(.*)'+'-UL', dataset)).group(1))
+            
+        debug(self.debugMode, dataset, " " , isMC, " " , IOV, " " , era)
+        '''
         
         
         #####################################
@@ -205,24 +223,39 @@ class QJetMassProcessor(processor.ProcessorABC):
             z_mcut_gen = ak.where( sel.all("twoGen_leptons") & ~ak.is_none(z_gen),  (z_gen.mass > 80.) & (z_gen.mass < 110), False )
             sel.add("z_ptcut_gen", z_ptcut_gen)
             sel.add("z_mcut_gen", z_mcut_gen)
-            
-            
+
             #####################################
             ### Get Gen Jet
             #####################################
             gen_jet, z_jet_dphi_gen = get_dphi( z_gen, events.GenJetAK8 )
             z_jet_dr_gen = gen_jet.delta_r(z_gen)
 
+
+
             #####################################
             ### Gen event topology selection
             #####################################        
             z_pt_asym_gen = np.abs(z_gen.pt - gen_jet.pt) / (z_gen.pt + gen_jet.pt)
+            z_pt_frac_gen = z_gen.pt / gen_jet.pt
             z_pt_asym_sel_gen =  z_pt_asym_gen < 0.3
-            z_jet_dphi_sel_gen = z_jet_dphi_gen > np.pi * 0.5
+            z_jet_dphi_sel_gen = z_jet_dphi_gen > 2.8 #np.pi * 0.5
             sel.add("z_jet_dphi_sel_gen", z_jet_dphi_sel_gen)
             sel.add("z_pt_asym_sel_gen", z_pt_asym_sel_gen)
 
-
+            '''
+            print("z_gen pt ", z_gen[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen].pt)
+            print("z_gen eta ", z_gen[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen].eta)
+            print("z_gen phi ", z_gen[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen].phi)
+            
+            print("gen_jet pt ", gen_jet[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen].pt)
+            print("gen_jet eta ", gen_jet[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen].eta)
+            print("gen_jet phi ", gen_jet[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen].phi)            
+            
+            print(" dphi ", z_jet_dphi_gen[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen])
+            print(" asym ", z_pt_asym_gen[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen])
+            print(" dr   ", z_jet_dr_gen[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen])
+            '''
+            
             #####################################
             ### Make gen plots with Z and jet cuts
             #####################################
@@ -248,6 +281,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             z_pt_asym_sel_gen2 = z_pt_asym_sel_gen[~ak.is_none(gen_jet) & kinsel_gen]
             z_pt_asym_gen2 = z_pt_asym_gen[~ak.is_none(gen_jet) & kinsel_gen]
             z_jet_dphi_gen2 = z_jet_dphi_gen[~ak.is_none(gen_jet) & kinsel_gen]
+            z_pt_frac_gen2 = z_pt_frac_gen[~ak.is_none(gen_jet) & kinsel_gen]
             z_jet_dphi_sel_gen2 = z_jet_dphi_sel_gen[~ak.is_none(gen_jet) & kinsel_gen]
 
             # Making N-1 plots for these three
@@ -259,6 +293,10 @@ class QJetMassProcessor(processor.ProcessorABC):
                                                weight=weights2[z_pt_asym_sel_gen2])
             self.hists["ptasym_z_jet_gen"].fill(dataset=dataset, 
                                                  frac=z_pt_asym_gen2[z_jet_dphi_sel_gen2],
+                                                 weight=weights2[z_jet_dphi_sel_gen2])
+            self.hists["ptfrac_z_jet_gen"].fill(dataset=dataset, 
+                                                 ptreco=z_gen[z_jet_dphi_sel_gen2].pt,
+                                                 frac=z_pt_frac_gen2[z_jet_dphi_sel_gen2],
                                                  weight=weights2[z_jet_dphi_sel_gen2])
 
             #####################################
