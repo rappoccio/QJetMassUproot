@@ -236,7 +236,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             ### Gen event topology selection
             #####################################        
             z_pt_asym_gen = np.abs(z_gen.pt - gen_jet.pt) / (z_gen.pt + gen_jet.pt)
-            z_pt_frac_gen = z_gen.pt / gen_jet.pt
+            z_pt_frac_gen = gen_jet.pt / z_gen.pt
             z_pt_asym_sel_gen =  z_pt_asym_gen < 0.3
             z_jet_dphi_sel_gen = z_jet_dphi_gen > 2.8 #np.pi * 0.5
             sel.add("z_jet_dphi_sel_gen", z_jet_dphi_sel_gen)
@@ -349,8 +349,9 @@ class QJetMassProcessor(processor.ProcessorABC):
         #####################################
         ### Reco event topology sel
         #####################################
-        z_jet_dphi_sel_reco = z_jet_dphi_reco > np.pi * 0.5
+        z_jet_dphi_sel_reco = z_jet_dphi_reco > 2.8 #np.pi * 0.5
         z_pt_asym_reco = np.abs(z_reco.pt - reco_jet.pt) / (z_reco.pt + reco_jet.pt)
+        z_pt_frac_reco = reco_jet.pt / z_reco.pt
         z_pt_asym_sel_reco = z_pt_asym_reco < 0.3
         sel.add("z_jet_dphi_sel_reco", z_jet_dphi_sel_reco)
         sel.add("z_pt_asym_sel_reco", z_pt_asym_sel_reco)
@@ -386,6 +387,7 @@ class QJetMassProcessor(processor.ProcessorABC):
         z_jet_dr_reco3 = z_jet_dr_reco[ ~ak.is_none(reco_jet)]
         z_pt_asym_sel_reco3 = z_pt_asym_sel_reco[~ak.is_none(reco_jet)]
         z_pt_asym_reco3 = z_pt_asym_reco[~ak.is_none(reco_jet)]
+        z_pt_frac_reco3 = z_pt_frac_reco[~ak.is_none(reco_jet)]
         z_jet_dphi_reco3 = z_jet_dphi_reco[~ak.is_none(reco_jet)]
         z_jet_dphi_sel_reco3 = z_jet_dphi_sel_reco[~ak.is_none(reco_jet)]
         
@@ -399,7 +401,10 @@ class QJetMassProcessor(processor.ProcessorABC):
         self.hists["ptasym_z_jet_reco"].fill(dataset=dataset, 
                                              frac=z_pt_asym_reco3[presel_reco3 & z_jet_dphi_sel_reco3],
                                              weight=weights3[presel_reco3 & z_jet_dphi_sel_reco3])
-            
+        self.hists["ptfrac_z_jet_reco"].fill(dataset=dataset, 
+                                             ptreco=z_reco[presel_reco3 & z_jet_dphi_sel_reco3].pt,
+                                             frac=z_pt_frac_reco3[presel_reco3 & z_jet_dphi_sel_reco3],
+                                             weight=weights3[presel_reco3 & z_jet_dphi_sel_reco3])
         
         #####################################
         ### Make final selection plots here
