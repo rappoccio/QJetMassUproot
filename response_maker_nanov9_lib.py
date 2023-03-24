@@ -10,8 +10,9 @@ from coffea.nanoevents import NanoEventsFactory, NanoAODSchema, BaseSchema
 from coffea.analysis_tools import PackedSelection
 from collections import defaultdict
 from smp_utils import *
-
-
+import tokenize as tok
+import re
+from cms_utils import *
 
 
 class QJetMassProcessor(processor.ProcessorABC):
@@ -21,6 +22,9 @@ class QJetMassProcessor(processor.ProcessorABC):
     Will always plot RECO level quantities. 
     '''
     def __init__(self, do_gen=True, ptcut=200., etacut = 2.5, ptcut_ee = 40., ptcut_mm = 29.):
+        
+        self.lumimasks = getLumiMaskRun2()
+        
         # should have separate lower ptcut for gen
         self.do_gen=do_gen
         self.ptcut = ptcut
@@ -65,6 +69,7 @@ class QJetMassProcessor(processor.ProcessorABC):
         h_ptfrac_z_jet_gen = hist.Hist(dataset_axis, ptreco_axis, frac_axis, storage="weight", label="Counts")
         h_ptfrac_z_jet_reco = hist.Hist(dataset_axis, ptreco_axis, frac_axis, storage="weight", label="Counts")
         h_dr_gen_subjet = hist.Hist(dataset_axis, dr_axis, storage="weight", label="Counts")
+        h_dr_reco_to_gen_subjet = hist.Hist(dataset_axis, dr_axis, storage="weight", label="Counts")
         
         
         ### Plots to be unfolded
@@ -115,6 +120,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             "m_u_jet_reco_over_gen":h_m_u_jet_reco_over_gen,
             "m_g_jet_reco_over_gen":h_m_g_jet_reco_over_gen,
             "dr_gen_subjet":h_dr_gen_subjet,
+            "dr_reco_to_gen_subjet":h_dr_reco_to_gen_subjet,
             "response_matrix_u":h_response_matrix_u,
             "response_matrix_g":h_response_matrix_g,
             "cutflow":cutflow
@@ -132,23 +138,34 @@ class QJetMassProcessor(processor.ProcessorABC):
     # we will receive a NanoEvents instead of a coffea DataFrame
     def process(self, events):
         dataset = events.metadata['dataset']
+        filename = events.metadata['filename']
         if dataset not in self.hists["cutflow"]:
             self.hists["cutflow"][dataset] = defaultdict(int)
-        
-        '''
-        IOV = ('2016APV' if any(re.findall(r'HIPM', dataset))
-               else '2018' if any(re.findall(r'UL2018', dataset))
-               else '2017' if any(re.findall(r'UL2017', dataset))
+            
+        #####################################
+        #### Find the IOV from the dataset name
+        #####################################
+        IOV = ('2016APV' if any(re.findall(r'APV', dataset))
+               else '2018' if any(re.findall(r'UL18', dataset))
+               else '2017' if any(re.findall(r'UL17', dataset))
                else '2016')
         
-        if (isMC):
+
+        #####################################
+        #### Find the era from the file name
+        #### Apply the good lumi mask
+        #####################################
+        if (self.do_gen):
             era = None
         else:
-            era = 'Run'+((re.search('Run2016(.*)HIPM', dataset)).group(1)[:-1] if IOV == '2016APV'
-                   else (re.search('Run'+str(IOV)+'(.*)'+'-UL', dataset)).group(1))
-            
-        debug(self.debugMode, dataset, " " , isMC, " " , IOV, " " , era)
-        '''
+            firstidx = filename.find( "store/data/" )
+            fname2 = filename[firstidx:]
+            fname_toks = fname2.split("/")
+            era = fname_toks[ fname_toks.index("data") + 1]
+            print("IOV ", IOV, ", era ", era)
+            lumi_mask = np.array(self.lumimasks[IOV](events.run, events.luminosityBlock), dtype=bool)
+            events = events[lumi_mask]
+        
         
         
         #####################################
@@ -444,7 +461,78 @@ class QJetMassProcessor(processor.ProcessorABC):
             self.hists["response_matrix_g"].fill( dataset=dataset, 
                                                ptreco=reco_jet.pt, ptgen=gen_jet.pt,
                                                mreco=reco_jet.msoftdrop, mgen=groomed_gen_jet.mass )
+            
 
+            #weird = (reco_jet.msoftdrop/groomed_gen_jet.mass > 2.0) & (reco_jet.msoftdrop > 10.)
+            weird = (np.abs(reco_jet.msoftdrop - groomed_gen_jet.mass) > 20.0) & (reco_jet.msoftdrop > 10.)
+            
+            
+            recosubjets = events.SubJet[allsel_gen & allsel_reco]           
+            subjet1 = reco_jet.subjets[:,0]
+            subjet2 = reco_jet.subjets[:,1]
+            gensubjet1,drsub1 = find_closest_dr(subjet1, gensubjets[allsel_gen & allsel_reco])
+            gensubjet2,drsub2 = find_closest_dr(subjet2, gensubjets[allsel_gen & allsel_reco])
+            
+            self.hists["dr_reco_to_gen_subjet"].fill(dataset=dataset, 
+                                                     dr=drsub1[~ak.is_none(drsub1) & ~ak.is_none(drsub2)], 
+                                                     weight=weights[~ak.is_none(drsub1) & ~ak.is_none(drsub2)])
+            self.hists["dr_reco_to_gen_subjet"].fill(dataset=dataset, 
+                                                     dr=drsub2[~ak.is_none(drsub1) & ~ak.is_none(drsub2)], 
+                                                     weight=weights[~ak.is_none(drsub1) & ~ak.is_none(drsub2)])
+            
+            '''
+            print("gen  pt ", gen_jet[weird].pt)
+            print("gen  eta ", gen_jet[weird].eta)
+            print("gen  phi ", gen_jet[weird].phi)
+            print("gen  m ", gen_jet[weird].mass)
+            print("ggen pt ", groomed_gen_jet[weird].pt)
+            print("ggen eta ", groomed_gen_jet[weird].eta)
+            print("ggen phi ", groomed_gen_jet[weird].phi)
+            print("ggen m ", groomed_gen_jet[weird].mass)
+
+            
+            print("reco pt ", reco_jet[weird].pt)
+            print("reco eta ", reco_jet[weird].eta)
+            print("reco phi ", reco_jet[weird].phi)
+            print("reco m ", reco_jet[weird].mass)
+            print("reco m ", reco_jet[weird].msoftdrop)
+            print("subjetIdx1 ", reco_jet[weird].subJetIdx1)
+            print("subjetIdx2 ", reco_jet[weird].subJetIdx2)
+            
+            print("gensubjets pt  ", gensubjets[allsel_gen & allsel_reco][weird].pt)
+            print("gensubjets eta ", gensubjets[allsel_gen & allsel_reco][weird].eta)
+            print("gensubjets phi ", gensubjets[allsel_gen & allsel_reco][weird].phi)
+            print("gensubjets m   ", gensubjets[allsel_gen & allsel_reco][weird].mass)
+        
+            print("recosubjets pt  ", recosubjets[weird].pt)
+            print("recosubjets eta ", recosubjets[weird].eta)
+            print("recosubjets phi ", recosubjets[weird].phi)
+            print("recosubjets m   ", recosubjets[weird].mass)
+
+            
+            print("gensubjet1 pt  ", gensubjet1[weird].pt)
+            print("gensubjet1 eta ", gensubjet1[weird].eta)
+            print("gensubjet1 phi ", gensubjet1[weird].phi)
+            print("gensubjet1 m   ", gensubjet1[weird].mass)
+
+            print("gensubjet2 pt  ", gensubjet2[weird].pt)
+            print("gensubjet2 eta ", gensubjet2[weird].eta)
+            print("gensubjet2 phi ", gensubjet2[weird].phi)
+            print("gensubjet2 m   ", gensubjet2[weird].mass)
+            
+            print("subjet1 pt  ", subjet1[weird].pt)
+            print("subjet1 eta ", subjet1[weird].eta)
+            print("subjet1 phi ", subjet1[weird].phi)
+            print("subjet1 m   ", subjet1[weird].mass)
+
+            print("subjet2 pt  ", subjet2[weird].pt)
+            print("subjet2 eta ", subjet2[weird].eta)
+            print("subjet2 phi ", subjet2[weird].phi)
+            print("subjet2 m   ", subjet2[weird].mass)
+            
+            print("DR subjet 1 ", drsub1[weird])
+            print("DR subjet 2 ", drsub2[weird])
+            '''
         
         for name in sel.names:
             self.hists["cutflow"][dataset][name] = sel.all(name).sum()
