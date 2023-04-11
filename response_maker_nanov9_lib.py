@@ -13,6 +13,9 @@ from smp_utils import *
 import tokenize as tok
 import re
 from cms_utils import *
+from coffea.jetmet_tools import JetResolutionScaleFactor
+from coffea.jetmet_tools import FactorizedJetCorrector, JetCorrectionUncertainty
+from coffea.jetmet_tools import JECStack, CorrectedJetsFactory
 
 
 class QJetMassProcessor(processor.ProcessorABC):
@@ -145,9 +148,10 @@ class QJetMassProcessor(processor.ProcessorABC):
         #####################################
         #### Find the IOV from the dataset name
         #####################################
-        IOV = ('2016APV' if any(re.findall(r'APV', dataset))
-               else '2018' if any(re.findall(r'UL18', dataset))
-               else '2017' if any(re.findall(r'UL17', dataset))
+        IOV = ('Test' if any(re.findall(r'Test', dataset))
+               else '2016APV' if ( any(re.findall(r'APV',  dataset)) or any(re.findall(r'UL2016APV', dataset)))
+               else '2018'    if ( any(re.findall(r'UL18', dataset)) or any(re.findall(r'UL2018',    dataset)))
+               else '2017'    if ( any(re.findall(r'UL17', dataset)) or any(re.findall(r'UL2017',    dataset)))
                else '2016')
         
 
@@ -167,14 +171,60 @@ class QJetMassProcessor(processor.ProcessorABC):
             events = events[lumi_mask]
         
         
+        ## PU reweighting
+        events["pu_nominal"] = GetPUSF(IOV, np.array(events.Pileup.nTrueInt))
+        events["pu_U"]    = GetPUSF(IOV, np.array(events.Pileup.nTrueInt), "up")
+        events["pu_D"]    = GetPUSF(IOV, np.array(events.Pileup.nTrueInt), "down")
+        
+        
+        ## L1PreFiringWeight
+        events["prefiring_N"] = GetL1PreFiringWeight(IOV, events)
+        events["prefiring_U"] = GetL1PreFiringWeight(IOV, events, "Up")
+        events["prefiring_D"] = GetL1PreFiringWeight(IOV, events, "Dn")
+
+        
+        ## Electron Reco systematics
+        events["elereco_N"] = GetEleSF(IOV, "RecoAbove20", events.Electron.eta, events.Electron.pt)
+        events["elereco_U"] = GetEleSF(IOV, "RecoAbove20", events.Electron.eta, events.Electron.pt, "up")
+        events["elereco_D"] = GetEleSF(IOV, "RecoAbove20", events.Electron.eta, events.Electron.pt, "down")
+
+        ## Electron ID systematics
+        events["eleid_N"] = GetEleSF(IOV, "Tight", events.Electron.eta, events.Electron.pt)
+        events["eleid_U"] = GetEleSF(IOV, "Tight", events.Electron.eta, events.Electron.pt, "up")
+        events["eleid_D"] = GetEleSF(IOV, "Tight", events.Electron.eta, events.Electron.pt, "down")
+        
+        ## Muon Reco systematics
+        events["mureco_N"] = GetMuonSF(IOV, "mureco", np.abs(events.Muon.eta), events.Muon.pt)
+        events["mureco_U"] = GetMuonSF(IOV, "mureco", np.abs(events.Muon.eta), events.Muon.pt, "systup")
+        events["mureco_D"] = GetMuonSF(IOV, "mureco", np.abs(events.Muon.eta), events.Muon.pt, "systdown")
+
+        ## Muon ID systematics
+        events["muid_N"] = GetMuonSF(IOV, "muid", np.abs(events.Muon.eta), events.Muon.pt)
+        events["muid_U"] = GetMuonSF(IOV, "muid", np.abs(events.Muon.eta), events.Muon.pt, "systup")
+        events["muid_D"] = GetMuonSF(IOV, "muid", np.abs(events.Muon.eta), events.Muon.pt, "systdown")
+
+        ## Muon Trigger systematics
+        #events["mutrig_N"] = GetMuonTrigEff(IOV, np.abs(events.Muon.eta), events.Muon.pt)
+        #events["mutrig_U"] = GetMuonTrigEff(IOV, np.abs(events.Muon.eta), events.Muon.pt, "up")
+        #events["mutrig_D"] = GetMuonTrigEff(IOV, np.abs(events.Muon.eta), events.Muon.pt, "down")
+
+        ## pdf uncertainty systematics 
+        #events["pdf_N"] = GetPDFweights(events)
+        #events["pdf_U"] = GetPDFweights(events, var="up")
+        #events["pdf_D"] = GetPDFweights(events, var="down")
+
+
+        ## q2 uncertainty systematics
+        events["q2_N"] = GetQ2weights(events)
+        events["q2_U"] = GetQ2weights(events, var="up")
+        events["q2_D"] = GetQ2weights(events, var="down")
+
         
         #####################################
         ### Initialize selection
         #####################################
         sel = PackedSelection()
-        
-        
-         
+
         #####################################
         ### Trigger selection for data
         #####################################       
@@ -213,7 +263,8 @@ class QJetMassProcessor(processor.ProcessorABC):
             weights = np.full( len( events ), 1.0 )
         
         
-
+        # NPV selection
+        sel.add("npv", events.PV.npvsGood>0)
 
         
         #####################################
@@ -258,20 +309,6 @@ class QJetMassProcessor(processor.ProcessorABC):
             z_jet_dphi_sel_gen = z_jet_dphi_gen > 2.8 #np.pi * 0.5
             sel.add("z_jet_dphi_sel_gen", z_jet_dphi_sel_gen)
             sel.add("z_pt_asym_sel_gen", z_pt_asym_sel_gen)
-
-            '''
-            print("z_gen pt ", z_gen[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen].pt)
-            print("z_gen eta ", z_gen[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen].eta)
-            print("z_gen phi ", z_gen[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen].phi)
-            
-            print("gen_jet pt ", gen_jet[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen].pt)
-            print("gen_jet eta ", gen_jet[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen].eta)
-            print("gen_jet phi ", gen_jet[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen].phi)            
-            
-            print(" dphi ", z_jet_dphi_gen[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen])
-            print(" asym ", z_pt_asym_gen[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen])
-            print(" dr   ", z_jet_dr_gen[z_ptcut_gen & z_mcut_gen & z_jet_dphi_sel_gen & z_pt_asym_sel_gen])
-            '''
             
             #####################################
             ### Make gen plots with Z and jet cuts
@@ -325,7 +362,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             #####################################
             ### Convenience selection that has all gen cuts
             #####################################
-            allsel_gen = sel.all("kinsel_gen", "toposel_gen" )
+            allsel_gen = sel.all("npv", "kinsel_gen", "toposel_gen" )
             sel.add("allsel_gen", allsel_gen)
 
             #####################################
@@ -382,9 +419,9 @@ class QJetMassProcessor(processor.ProcessorABC):
         # Note: Trigger is not applied in the MC, so this is 
         # applying the full gen selection here to be in sync with rivet routine
         if self.do_gen:
-            presel_reco = sel.all("allsel_gen", "kinsel_reco")
+            presel_reco = sel.all("npv", "allsel_gen", "kinsel_reco")
         else:
-            presel_reco = sel.all("trigsel", "kinsel_reco")
+            presel_reco = sel.all("npv", "trigsel", "kinsel_reco")
         allsel_reco = presel_reco & toposel_reco
         sel.add("presel_reco", presel_reco)
         sel.add("allsel_reco", allsel_reco)
@@ -479,60 +516,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             self.hists["dr_reco_to_gen_subjet"].fill(dataset=dataset, 
                                                      dr=drsub2[~ak.is_none(drsub1) & ~ak.is_none(drsub2)], 
                                                      weight=weights[~ak.is_none(drsub1) & ~ak.is_none(drsub2)])
-            
-            '''
-            print("gen  pt ", gen_jet[weird].pt)
-            print("gen  eta ", gen_jet[weird].eta)
-            print("gen  phi ", gen_jet[weird].phi)
-            print("gen  m ", gen_jet[weird].mass)
-            print("ggen pt ", groomed_gen_jet[weird].pt)
-            print("ggen eta ", groomed_gen_jet[weird].eta)
-            print("ggen phi ", groomed_gen_jet[weird].phi)
-            print("ggen m ", groomed_gen_jet[weird].mass)
 
-            
-            print("reco pt ", reco_jet[weird].pt)
-            print("reco eta ", reco_jet[weird].eta)
-            print("reco phi ", reco_jet[weird].phi)
-            print("reco m ", reco_jet[weird].mass)
-            print("reco m ", reco_jet[weird].msoftdrop)
-            print("subjetIdx1 ", reco_jet[weird].subJetIdx1)
-            print("subjetIdx2 ", reco_jet[weird].subJetIdx2)
-            
-            print("gensubjets pt  ", gensubjets[allsel_gen & allsel_reco][weird].pt)
-            print("gensubjets eta ", gensubjets[allsel_gen & allsel_reco][weird].eta)
-            print("gensubjets phi ", gensubjets[allsel_gen & allsel_reco][weird].phi)
-            print("gensubjets m   ", gensubjets[allsel_gen & allsel_reco][weird].mass)
-        
-            print("recosubjets pt  ", recosubjets[weird].pt)
-            print("recosubjets eta ", recosubjets[weird].eta)
-            print("recosubjets phi ", recosubjets[weird].phi)
-            print("recosubjets m   ", recosubjets[weird].mass)
-
-            
-            print("gensubjet1 pt  ", gensubjet1[weird].pt)
-            print("gensubjet1 eta ", gensubjet1[weird].eta)
-            print("gensubjet1 phi ", gensubjet1[weird].phi)
-            print("gensubjet1 m   ", gensubjet1[weird].mass)
-
-            print("gensubjet2 pt  ", gensubjet2[weird].pt)
-            print("gensubjet2 eta ", gensubjet2[weird].eta)
-            print("gensubjet2 phi ", gensubjet2[weird].phi)
-            print("gensubjet2 m   ", gensubjet2[weird].mass)
-            
-            print("subjet1 pt  ", subjet1[weird].pt)
-            print("subjet1 eta ", subjet1[weird].eta)
-            print("subjet1 phi ", subjet1[weird].phi)
-            print("subjet1 m   ", subjet1[weird].mass)
-
-            print("subjet2 pt  ", subjet2[weird].pt)
-            print("subjet2 eta ", subjet2[weird].eta)
-            print("subjet2 phi ", subjet2[weird].phi)
-            print("subjet2 m   ", subjet2[weird].mass)
-            
-            print("DR subjet 1 ", drsub1[weird])
-            print("DR subjet 2 ", drsub2[weird])
-            '''
         
         for name in sel.names:
             self.hists["cutflow"][dataset][name] = sel.all(name).sum()
