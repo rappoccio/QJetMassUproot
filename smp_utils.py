@@ -67,26 +67,38 @@ def get_z_gen_selection( events, selection, ptcut_e, ptcut_m):
     #z_gen = ak.where( sel, ak.sum( events.GenDressedLepton, axis=1), None )
     return z_gen
     
-def get_z_reco_selection( events, selection, ptcut_e, ptcut_m):
+def get_z_reco_selection( events, selection, ptcut_e, ptcut_m, ptcut_e2=None, ptcut_m2=None):
     '''
-    Function to get Z candidates from ee and mumu pairs from reconstructed leptons
+    Function to get Z candidates from ee and mumu pairs from reconstructed leptons. 
+    If ptcut_e2 or ptcut_m2 are not None, then the cuts on the pt are asymmetric
     '''
+
+    if ptcut_e2 == None:
+        ptcut_e2 = ptcut_e
+    if ptcut_m2 == None:
+        ptcut_m2 = ptcut_m
+
+
     selection.add("twoReco_ee", 
                   (ak.num(events.Electron) == 2) & 
-                  (ak.all(events.Electron.pt > ptcut_e, axis=1)) & 
+                  (ak.all(events.Electron.pt > ptcut_e2, axis=1)) & 
+                  (ak.max(events.Electron.pt, axis=1) > ptcut_e) &
                   (ak.all( np.abs(events.Electron.eta) < 2.5, axis=1)) & 
                   (ak.sum(events.Electron.charge, axis=1) == 0) &
                   (ak.all(events.Electron.pfRelIso03_all < 0.2, axis=1)) &
                   (ak.all(events.Electron.cutBased > 0, axis=1) )
-                 )
+    )
+    
     selection.add("twoReco_mm", 
                   (ak.num(events.Muon) == 2) & 
                   (ak.all(events.Muon.pt > ptcut_m, axis=1)) & 
+                  (ak.max(events.Muon.pt, axis=1) > ptcut_m) &
                   (ak.all( np.abs(events.Muon.eta) < 2.5, axis=1)) & 
                   (ak.sum(events.Muon.charge, axis=1) == 0) &
                   (ak.all(events.Muon.pfRelIso03_all < 0.2, axis=1)) &
                   (ak.all(events.Muon.looseId > 0, axis=1))
-                 )
+    )
+
     selection.add("twoReco_leptons",
                   selection.all("twoReco_ee") | selection.all("twoReco_mm")
                  )

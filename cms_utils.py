@@ -27,7 +27,7 @@ import correctionlib
 
 def CorrectJetsRun2(IOV, Jets, JetsName="AK4PFchs", leptons_inJet=None):
     jer_tag=None
-    if (IOV=='2018'):
+    if (IOV=='2018' or IOV == 'Test'):
         jec_tag="Summer19UL18_V5_MC"
         jec_tag_data={
             "RunA": "Summer19UL18_RunA_V5_DATA",
