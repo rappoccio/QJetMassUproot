@@ -148,8 +148,7 @@ class QJetMassProcessor(processor.ProcessorABC):
         #####################################
         #### Find the IOV from the dataset name
         #####################################
-        IOV = ('Test' if any(re.findall(r'Test', dataset))
-               else '2016APV' if ( any(re.findall(r'APV',  dataset)) or any(re.findall(r'UL2016APV', dataset)))
+        IOV = ('2016APV' if ( any(re.findall(r'APV',  dataset)) or any(re.findall(r'UL2016APV', dataset)))
                else '2018'    if ( any(re.findall(r'UL18', dataset)) or any(re.findall(r'UL2018',    dataset)))
                else '2017'    if ( any(re.findall(r'UL17', dataset)) or any(re.findall(r'UL2017',    dataset)))
                else '2016')
@@ -172,52 +171,52 @@ class QJetMassProcessor(processor.ProcessorABC):
         
         
         ## PU reweighting
-        events["pu_nominal"] = GetPUSF(IOV, np.array(events.Pileup.nTrueInt))
-        events["pu_U"]    = GetPUSF(IOV, np.array(events.Pileup.nTrueInt), "up")
-        events["pu_D"]    = GetPUSF(IOV, np.array(events.Pileup.nTrueInt), "down")
+        if self.do_gen:
+            events["pu_nominal"] = GetPUSF(IOV, np.array(events.Pileup.nTrueInt))
+            events["pu_U"]    = GetPUSF(IOV, np.array(events.Pileup.nTrueInt), "up")
+            events["pu_D"]    = GetPUSF(IOV, np.array(events.Pileup.nTrueInt), "down")
         
-        
-        ## L1PreFiringWeight
-        events["prefiring_N"] = GetL1PreFiringWeight(IOV, events)
-        events["prefiring_U"] = GetL1PreFiringWeight(IOV, events, "Up")
-        events["prefiring_D"] = GetL1PreFiringWeight(IOV, events, "Dn")
-
-        
-        ## Electron Reco systematics
-        events["elereco_N"] = GetEleSF(IOV, "RecoAbove20", events.Electron.eta, events.Electron.pt)
-        events["elereco_U"] = GetEleSF(IOV, "RecoAbove20", events.Electron.eta, events.Electron.pt, "up")
-        events["elereco_D"] = GetEleSF(IOV, "RecoAbove20", events.Electron.eta, events.Electron.pt, "down")
-
-        ## Electron ID systematics
-        events["eleid_N"] = GetEleSF(IOV, "Tight", events.Electron.eta, events.Electron.pt)
-        events["eleid_U"] = GetEleSF(IOV, "Tight", events.Electron.eta, events.Electron.pt, "up")
-        events["eleid_D"] = GetEleSF(IOV, "Tight", events.Electron.eta, events.Electron.pt, "down")
-        
-        ## Muon Reco systematics
-        events["mureco_N"] = GetMuonSF(IOV, "mureco", np.abs(events.Muon.eta), events.Muon.pt)
-        events["mureco_U"] = GetMuonSF(IOV, "mureco", np.abs(events.Muon.eta), events.Muon.pt, "systup")
-        events["mureco_D"] = GetMuonSF(IOV, "mureco", np.abs(events.Muon.eta), events.Muon.pt, "systdown")
-
-        ## Muon ID systematics
-        events["muid_N"] = GetMuonSF(IOV, "muid", np.abs(events.Muon.eta), events.Muon.pt)
-        events["muid_U"] = GetMuonSF(IOV, "muid", np.abs(events.Muon.eta), events.Muon.pt, "systup")
-        events["muid_D"] = GetMuonSF(IOV, "muid", np.abs(events.Muon.eta), events.Muon.pt, "systdown")
-
-        ## Muon Trigger systematics
-        #events["mutrig_N"] = GetMuonTrigEff(IOV, np.abs(events.Muon.eta), events.Muon.pt)
-        #events["mutrig_U"] = GetMuonTrigEff(IOV, np.abs(events.Muon.eta), events.Muon.pt, "up")
-        #events["mutrig_D"] = GetMuonTrigEff(IOV, np.abs(events.Muon.eta), events.Muon.pt, "down")
-
-        ## pdf uncertainty systematics 
-        #events["pdf_N"] = GetPDFweights(events)
-        #events["pdf_U"] = GetPDFweights(events, var="up")
-        #events["pdf_D"] = GetPDFweights(events, var="down")
+            ## L1PreFiringWeight
+            events["prefiring_N"] = GetL1PreFiringWeight(IOV, events)
+            events["prefiring_U"] = GetL1PreFiringWeight(IOV, events, "Up")
+            events["prefiring_D"] = GetL1PreFiringWeight(IOV, events, "Dn")
 
 
-        ## q2 uncertainty systematics
-        events["q2_N"] = GetQ2weights(events)
-        events["q2_U"] = GetQ2weights(events, var="up")
-        events["q2_D"] = GetQ2weights(events, var="down")
+            ## Electron Reco systematics
+            events["elereco_N"] = GetEleSF(IOV, "RecoAbove20", events.Electron.eta, events.Electron.pt)
+            events["elereco_U"] = GetEleSF(IOV, "RecoAbove20", events.Electron.eta, events.Electron.pt, "up")
+            events["elereco_D"] = GetEleSF(IOV, "RecoAbove20", events.Electron.eta, events.Electron.pt, "down")
+
+            ## Electron ID systematics
+            events["eleid_N"] = GetEleSF(IOV, "Tight", events.Electron.eta, events.Electron.pt)
+            events["eleid_U"] = GetEleSF(IOV, "Tight", events.Electron.eta, events.Electron.pt, "up")
+            events["eleid_D"] = GetEleSF(IOV, "Tight", events.Electron.eta, events.Electron.pt, "down")
+
+            ## Muon Reco systematics
+            events["mureco_N"] = GetMuonSF(IOV, "mureco", np.abs(events.Muon.eta), events.Muon.pt)
+            events["mureco_U"] = GetMuonSF(IOV, "mureco", np.abs(events.Muon.eta), events.Muon.pt, "systup")
+            events["mureco_D"] = GetMuonSF(IOV, "mureco", np.abs(events.Muon.eta), events.Muon.pt, "systdown")
+
+            ## Muon ID systematics
+            events["muid_N"] = GetMuonSF(IOV, "muid", np.abs(events.Muon.eta), events.Muon.pt)
+            events["muid_U"] = GetMuonSF(IOV, "muid", np.abs(events.Muon.eta), events.Muon.pt, "systup")
+            events["muid_D"] = GetMuonSF(IOV, "muid", np.abs(events.Muon.eta), events.Muon.pt, "systdown")
+
+            ## Muon Trigger systematics
+            #events["mutrig_N"] = GetMuonTrigEff(IOV, np.abs(events.Muon.eta), events.Muon.pt)
+            #events["mutrig_U"] = GetMuonTrigEff(IOV, np.abs(events.Muon.eta), events.Muon.pt, "up")
+            #events["mutrig_D"] = GetMuonTrigEff(IOV, np.abs(events.Muon.eta), events.Muon.pt, "down")
+
+            ## pdf uncertainty systematics 
+            #events["pdf_N"] = GetPDFweights(events)
+            #events["pdf_U"] = GetPDFweights(events, var="up")
+            #events["pdf_D"] = GetPDFweights(events, var="down")
+
+
+            ## q2 uncertainty systematics
+            events["q2_N"] = GetQ2weights(events)
+            events["q2_U"] = GetQ2weights(events, var="up")
+            events["q2_D"] = GetQ2weights(events, var="down")
 
         
         #####################################
@@ -234,8 +233,6 @@ class QJetMassProcessor(processor.ProcessorABC):
             elif "UL2017" in dataset:
                 trigsel = events.HLT.IsoMu27 | events.HLT.Ele35_WPTight_Gsf | events.HLT.Photon200
             elif "UL2018" in dataset:
-                trigsel = events.HLT.IsoMu24 | events.HLT.Ele32_WPTight_Gsf | events.HLT.Photon200
-            elif "Test" in dataset: 
                 trigsel = events.HLT.IsoMu24 | events.HLT.Ele32_WPTight_Gsf | events.HLT.Photon200
             else:
                 raise Exception("Dataset is incorrect, should have 2016, 2017, 2018: ", dataset)
