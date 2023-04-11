@@ -279,16 +279,16 @@ class QJetMassProcessor(processor.ProcessorABC):
             ### Events with at least one gen jet
             #####################################
             sel.add("oneGenJet", 
-                  ak.sum( (events.GenJetAK8.pt > 120.) & (np.abs(events.GenJetAK8.eta) < 2.5), axis=1 ) >= 1
+                  ak.sum( (events.GenJetAK8.pt > 136.) & (np.abs(events.GenJetAK8.eta) < 2.5), axis=1 ) >= 1
             )
-            events.GenJetAK8 = events.GenJetAK8[(events.GenJetAK8.pt > 120.) & (np.abs(events.GenJetAK8.eta) < 2.5)]
+            events.GenJetAK8 = events.GenJetAK8[(events.GenJetAK8.pt > 136.) & (np.abs(events.GenJetAK8.eta) < 2.5)]
 
             #####################################
             ### Make gen-level Z
             #####################################
             z_gen = get_z_gen_selection(events, sel, self.lepptcuts[0], self.lepptcuts[1] )
             z_ptcut_gen = ak.where( sel.all("twoGen_leptons") & ~ak.is_none(z_gen),  z_gen.pt > 90., False )
-            z_mcut_gen = ak.where( sel.all("twoGen_leptons") & ~ak.is_none(z_gen),  (z_gen.mass > 80.) & (z_gen.mass < 110), False )
+            z_mcut_gen = ak.where( sel.all("twoGen_leptons") & ~ak.is_none(z_gen),  (z_gen.mass > 71.) & (z_gen.mass < 111), False )
             sel.add("z_ptcut_gen", z_ptcut_gen)
             sel.add("z_mcut_gen", z_mcut_gen)
 
@@ -306,7 +306,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             z_pt_asym_gen = np.abs(z_gen.pt - gen_jet.pt) / (z_gen.pt + gen_jet.pt)
             z_pt_frac_gen = gen_jet.pt / z_gen.pt
             z_pt_asym_sel_gen =  z_pt_asym_gen < 0.3
-            z_jet_dphi_sel_gen = z_jet_dphi_gen > 2.8 #np.pi * 0.5
+            z_jet_dphi_sel_gen = z_jet_dphi_gen > 1.57 #2.8 #np.pi * 0.5
             sel.add("z_jet_dphi_sel_gen", z_jet_dphi_sel_gen)
             sel.add("z_pt_asym_sel_gen", z_pt_asym_sel_gen)
             
@@ -315,7 +315,7 @@ class QJetMassProcessor(processor.ProcessorABC):
             #####################################
             kinsel_gen = sel.require(twoGen_leptons=True,oneGenJet=True,z_ptcut_gen=True,z_mcut_gen=True)
             sel.add("kinsel_gen", kinsel_gen)
-            toposel_gen = sel.require(z_pt_asym_sel_gen=True,z_jet_dphi_sel_gen=True)
+            toposel_gen = sel.require( z_pt_asym_sel_gen=True, z_jet_dphi_sel_gen=True)
             sel.add("toposel_gen", toposel_gen)
             self.hists["ptz_gen"].fill(dataset=dataset,
                                       pt=z_gen[kinsel_gen].pt,
@@ -381,14 +381,14 @@ class QJetMassProcessor(processor.ProcessorABC):
         #####################################
         z_reco = get_z_reco_selection(events, sel, self.lepptcuts[0], self.lepptcuts[1])
         z_ptcut_reco = z_reco.pt > 90.
-        z_mcut_reco = (z_reco.mass > 80.) & (z_reco.mass < 110.)
+        z_mcut_reco = (z_reco.mass > 71.) & (z_reco.mass < 111.)
         sel.add("z_ptcut_reco", z_ptcut_reco)
         sel.add("z_mcut_reco", z_mcut_reco)
         
         #####################################
         ### Reco jet selection
         #####################################
-        recojets = events.FatJet[(events.FatJet.pt > 170.) & (np.abs(events.FatJet.eta) < 2.5)]
+        recojets = events.FatJet[(events.FatJet.pt > 170.) & (np.abs(events.FatJet.eta) < 2.5)  ] # &  get_dR( z_reco, events.FatJet )>0.8
         sel.add("oneRecoJet", 
              ak.sum( (events.FatJet.pt > 170.) & (np.abs(events.FatJet.eta) < 2.5), axis=1 ) >= 1
         )
@@ -403,7 +403,7 @@ class QJetMassProcessor(processor.ProcessorABC):
         #####################################
         ### Reco event topology sel
         #####################################
-        z_jet_dphi_sel_reco = z_jet_dphi_reco > 2.8 #np.pi * 0.5
+        z_jet_dphi_sel_reco = z_jet_dphi_reco > 1.57 #np.pi * 0.5
         z_pt_asym_reco = np.abs(z_reco.pt - reco_jet.pt) / (z_reco.pt + reco_jet.pt)
         z_pt_frac_reco = reco_jet.pt / z_reco.pt
         z_pt_asym_sel_reco = z_pt_asym_reco < 0.3
@@ -412,7 +412,7 @@ class QJetMassProcessor(processor.ProcessorABC):
 
         kinsel_reco = sel.require(twoReco_leptons=True,oneRecoJet=True,z_ptcut_reco=True,z_mcut_reco=True)
         sel.add("kinsel_reco", kinsel_reco)
-        toposel_reco = sel.require(z_pt_asym_sel_reco=True,z_jet_dphi_sel_reco=True)
+        toposel_reco = sel.require( z_pt_asym_sel_reco=True, z_jet_dphi_sel_reco=True)
         sel.add("toposel_reco", toposel_reco)
 
         
