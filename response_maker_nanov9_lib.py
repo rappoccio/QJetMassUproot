@@ -490,16 +490,16 @@ class QJetMassProcessor(processor.ProcessorABC):
                     self.fwrite = uproot.recreate("skimmed_mc.root")
                     self.fwrite["Events"] = {                        
                         "reco_jet": ak.zip({
-                            "pt":ak.packed(ak.without_parameters(ak.singletons(reco_jet.pt))), 
-                            "eta":ak.packed(ak.without_parameters(ak.singletons(reco_jet.eta))), 
-                            "phi":ak.packed(ak.without_parameters(ak.singletons(reco_jet.phi))), 
-                            "mass":ak.packed(ak.without_parameters(ak.singletons(reco_jet.mass)))
+                            "pt":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.pt, value=np.nan))), 
+                            "eta":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.eta, value=np.nan))), 
+                            "phi":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.phi, value=np.nan))), 
+                            "mass":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.mass, value=np.nan)))
                         }),
                         "gen_jet": ak.zip({
-                            "pt":ak.packed(ak.without_parameters(ak.singletons(gen_jet.pt))), 
-                            "eta":ak.packed(ak.without_parameters(ak.singletons(gen_jet.eta))), 
-                            "phi":ak.packed(ak.without_parameters(ak.singletons(gen_jet.phi))), 
-                            "mass":ak.packed(ak.without_parameters(ak.singletons(gen_jet.mass)))
+                            "pt":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.pt, value=np.nan))), 
+                            "eta":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.eta, value=np.nan))), 
+                            "phi":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.phi, value=np.nan))), 
+                            "mass":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.mass, value=np.nan)))
                         })
                     }
                     self.first = False
@@ -508,16 +508,16 @@ class QJetMassProcessor(processor.ProcessorABC):
                     self.fwrite = uproot.update("skimmed_mc.root")
                     self.fwrite["Events"].extend({
                         "reco_jet": ak.zip({
-                            "pt":ak.packed(ak.without_parameters(ak.singletons(reco_jet.pt))), 
-                            "eta":ak.packed(ak.without_parameters(ak.singletons(reco_jet.eta))), 
-                            "phi":ak.packed(ak.without_parameters(ak.singletons(reco_jet.phi))), 
-                            "mass":ak.packed(ak.without_parameters(ak.singletons(reco_jet.mass)))
+                            "pt":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.pt, value=np.nan))), 
+                            "eta":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.eta, value=np.nan))), 
+                            "phi":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.phi, value=np.nan))), 
+                            "mass":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.mass, value=np.nan)))
                         }),
                         "gen_jet": ak.zip({
-                            "pt":ak.packed(ak.without_parameters(ak.singletons(gen_jet.pt))), 
-                            "eta":ak.packed(ak.without_parameters(ak.singletons(gen_jet.eta))), 
-                            "phi":ak.packed(ak.without_parameters(ak.singletons(gen_jet.phi))), 
-                            "mass":ak.packed(ak.without_parameters(ak.singletons(gen_jet.mass)))
+                            "pt":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.pt, value=np.nan))), 
+                            "eta":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.eta, value=np.nan))), 
+                            "phi":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.phi, value=np.nan))), 
+                            "mass":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.mass, value=np.nan)))
                         })
                     })  
 
