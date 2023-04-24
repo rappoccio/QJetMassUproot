@@ -5,6 +5,8 @@ import coffea
 import uproot
 import hist
 import vector
+import os
+import pandas as pd
 from coffea import util, processor
 from coffea.nanoevents import NanoEventsFactory, NanoAODSchema, BaseSchema
 from coffea.analysis_tools import PackedSelection
@@ -17,14 +19,13 @@ from coffea.jetmet_tools import JetResolutionScaleFactor
 from coffea.jetmet_tools import FactorizedJetCorrector, JetCorrectionUncertainty
 from coffea.jetmet_tools import JECStack, CorrectedJetsFactory
 
-
 class QJetMassProcessor(processor.ProcessorABC):
     '''
     Processor to run a Z+jets jet mass cross section analysis. 
     With "do_gen == True", will perform GEN selection and create response matrices. 
     Will always plot RECO level quantities. 
     '''
-    def __init__(self, do_gen=True, ptcut=200., etacut = 2.5, ptcut_ee = 40., ptcut_mm = 29.):
+    def __init__(self, do_gen=True, ptcut=200., etacut = 2.5, ptcut_ee = 40., ptcut_mm = 29., skimjets=False):
         
         self.lumimasks = getLumiMaskRun2()
         
@@ -33,6 +34,7 @@ class QJetMassProcessor(processor.ProcessorABC):
         self.ptcut = ptcut
         self.etacut = etacut        
         self.lepptcuts = [ptcut_ee, ptcut_mm]
+        self.skimjets = skimjets
                 
         binning = util_binning()
         
@@ -131,6 +133,11 @@ class QJetMassProcessor(processor.ProcessorABC):
         
         ## This is for rejecting events with large weights
         self.means_stddevs = defaultdict()
+        
+        
+        ## For stripping small numpy arrays
+        self.first = True
+        
     
     @property
     def accumulator(self):
@@ -472,6 +479,48 @@ class QJetMassProcessor(processor.ProcessorABC):
             z_gen = z_gen[allsel_reco]
             gen_jet = gen_jet[allsel_reco]
             groomed_gen_jet = groomed_gen_jet[allsel_reco]
+            
+            #print("numpy ", type(ak.to_numpy(reco_jet.pt).compressed()))
+
+
+
+
+            if self.skimjets: 
+                if self.first:
+                    self.fwrite = uproot.recreate("skimmed_mc.root")
+                    self.fwrite["Events"] = {                        
+                        "reco_jet": ak.zip({
+                            "pt":ak.packed(ak.without_parameters(ak.singletons(reco_jet.pt))), 
+                            "eta":ak.packed(ak.without_parameters(ak.singletons(reco_jet.eta))), 
+                            "phi":ak.packed(ak.without_parameters(ak.singletons(reco_jet.phi))), 
+                            "mass":ak.packed(ak.without_parameters(ak.singletons(reco_jet.mass)))
+                        }),
+                        "gen_jet": ak.zip({
+                            "pt":ak.packed(ak.without_parameters(ak.singletons(gen_jet.pt))), 
+                            "eta":ak.packed(ak.without_parameters(ak.singletons(gen_jet.eta))), 
+                            "phi":ak.packed(ak.without_parameters(ak.singletons(gen_jet.phi))), 
+                            "mass":ak.packed(ak.without_parameters(ak.singletons(gen_jet.mass)))
+                        })
+                    }
+                    self.first = False
+
+                else: 
+                    self.fwrite = uproot.update("skimmed_mc.root")
+                    self.fwrite["Events"].extend({
+                        "reco_jet": ak.zip({
+                            "pt":ak.packed(ak.without_parameters(ak.singletons(reco_jet.pt))), 
+                            "eta":ak.packed(ak.without_parameters(ak.singletons(reco_jet.eta))), 
+                            "phi":ak.packed(ak.without_parameters(ak.singletons(reco_jet.phi))), 
+                            "mass":ak.packed(ak.without_parameters(ak.singletons(reco_jet.mass)))
+                        }),
+                        "gen_jet": ak.zip({
+                            "pt":ak.packed(ak.without_parameters(ak.singletons(gen_jet.pt))), 
+                            "eta":ak.packed(ak.without_parameters(ak.singletons(gen_jet.eta))), 
+                            "phi":ak.packed(ak.without_parameters(ak.singletons(gen_jet.phi))), 
+                            "mass":ak.packed(ak.without_parameters(ak.singletons(gen_jet.mass)))
+                        })
+                    })  
+
 
 
             self.hists["ptjet_mjet_u_gen"].fill( dataset=dataset, ptgen=gen_jet.pt, mgen=gen_jet.mass, weight=weights )

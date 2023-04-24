@@ -17,7 +17,7 @@ from response_maker_nanov9_lib import *
 
 
 
-def response_maker_nanov9(testing=False, do_gen=True, client=None, prependstr = "root://xcache/"): 
+def response_maker_nanov9(testing=False, do_gen=True, client=None, prependstr = "root://xcache/", skimjets=False): 
 
     filedir = "samples/"
 
@@ -102,7 +102,7 @@ def response_maker_nanov9(testing=False, do_gen=True, client=None, prependstr = 
     output = run(
         fileset,
         "Events",
-        processor_instance=QJetMassProcessor(do_gen=do_gen),
+        processor_instance=QJetMassProcessor(do_gen=do_gen, skimjets=skimjets),
     )
 
         
