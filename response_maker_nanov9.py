@@ -17,7 +17,7 @@ from response_maker_nanov9_lib import *
 
 
 
-def response_maker_nanov9(testing=False, do_gen=True, client=None, prependstr = "root://xcache/", skimjets=False): 
+def response_maker_nanov9(testing=False, do_gen=True, client=None, prependstr = "root://xcache/", skimfilename=None): 
 
     filedir = "samples/"
 
@@ -80,6 +80,9 @@ def response_maker_nanov9(testing=False, do_gen=True, client=None, prependstr = 
         else: 
             fileset["UL2018"] = [prependstr + "/store/data/Run2018A/SingleMuon/NANOAOD/UL2018_MiniAODv2_NanoAODv9_GT36-v1/2820000/FF8A3CD2-3F51-7A43-B56C-7F7B7B3158E3.root"]
 
+            
+    if skimfilename != None: 
+        nworkers = 1
                     
                 
     if client == None or testing == True:         
@@ -99,13 +102,16 @@ def response_maker_nanov9(testing=False, do_gen=True, client=None, prependstr = 
             skipbadfiles=True
         )
         
+    print("Running...")
+        
+        
     output = run(
         fileset,
         "Events",
-        processor_instance=QJetMassProcessor(do_gen=do_gen, skimjets=skimjets),
+        processor_instance=QJetMassProcessor(do_gen=do_gen, skimfilename=skimfilename),
     )
 
-        
+    print("Done running")
     
     if do_gen:
         fname_out = 'qjetmass_zjets_gen.pkl'

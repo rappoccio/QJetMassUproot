@@ -25,7 +25,7 @@ class QJetMassProcessor(processor.ProcessorABC):
     With "do_gen == True", will perform GEN selection and create response matrices. 
     Will always plot RECO level quantities. 
     '''
-    def __init__(self, do_gen=True, ptcut=200., etacut = 2.5, ptcut_ee = 40., ptcut_mm = 29., skimjets=False):
+    def __init__(self, do_gen=True, ptcut=200., etacut = 2.5, ptcut_ee = 40., ptcut_mm = 29., skimfilename=None):
         
         self.lumimasks = getLumiMaskRun2()
         
@@ -34,7 +34,11 @@ class QJetMassProcessor(processor.ProcessorABC):
         self.ptcut = ptcut
         self.etacut = etacut        
         self.lepptcuts = [ptcut_ee, ptcut_mm]
-        self.skimjets = skimjets
+        
+        
+        self.skimfilename = skimfilename
+        if skimfilename != None:
+            self.skimfile = uproot.recreate(skimfilename)
                 
         binning = util_binning()
         
@@ -134,9 +138,6 @@ class QJetMassProcessor(processor.ProcessorABC):
         ## This is for rejecting events with large weights
         self.means_stddevs = defaultdict()
         
-        
-        ## For stripping small numpy arrays
-        self.first = True
         
     
     @property
@@ -485,10 +486,10 @@ class QJetMassProcessor(processor.ProcessorABC):
 
 
 
-            if self.skimjets: 
-                if self.first:
-                    self.fwrite = uproot.recreate("skimmed_mc.root")
-                    self.fwrite["Events"] = {                        
+            if self.skimfilename != None : 
+                self.skimfile = uproot.update(self.skimfilename)
+                if "Events" not in self.skimfile.keys():
+                    self.skimfile["Events"] = {
                         "reco_jet": ak.zip({
                             "pt":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.pt, value=np.nan))), 
                             "eta":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.eta, value=np.nan))), 
@@ -502,11 +503,8 @@ class QJetMassProcessor(processor.ProcessorABC):
                             "mass":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.mass, value=np.nan)))
                         })
                     }
-                    self.first = False
-
-                else: 
-                    self.fwrite = uproot.update("skimmed_mc.root")
-                    self.fwrite["Events"].extend({
+                else:                     
+                    self.skimfile["Events"].extend({
                         "reco_jet": ak.zip({
                             "pt":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.pt, value=np.nan))), 
                             "eta":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.eta, value=np.nan))), 
@@ -519,9 +517,8 @@ class QJetMassProcessor(processor.ProcessorABC):
                             "phi":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.phi, value=np.nan))), 
                             "mass":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.mass, value=np.nan)))
                         })
-                    })  
-
-
+                    })
+                self.skimfile.close()
 
             self.hists["ptjet_mjet_u_gen"].fill( dataset=dataset, ptgen=gen_jet.pt, mgen=gen_jet.mass, weight=weights )
             self.hists["ptjet_mjet_g_gen"].fill( dataset=dataset, ptgen=gen_jet.pt, mgen=groomed_gen_jet.mass, weight=weights )
