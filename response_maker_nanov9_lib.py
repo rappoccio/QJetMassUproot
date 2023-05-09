@@ -7,6 +7,7 @@ import hist
 import vector
 import os
 import pandas as pd
+import time
 from coffea import util, processor
 from coffea.nanoevents import NanoEventsFactory, NanoAODSchema, BaseSchema
 from coffea.analysis_tools import PackedSelection
@@ -35,10 +36,11 @@ class QJetMassProcessor(processor.ProcessorABC):
         self.etacut = etacut        
         self.lepptcuts = [ptcut_ee, ptcut_mm]
         
-        
-        self.skimfilename = skimfilename
-        if skimfilename != None:
-            self.skimfile = uproot.recreate(skimfilename)
+        if skimfilename != None: 
+            if ".root" in skimfilename: 
+                self.skimfilename = skimfilename.split(".root")[0]
+            else: 
+                self.skimfilename = skimfilename
                 
         binning = util_binning()
         
@@ -137,7 +139,7 @@ class QJetMassProcessor(processor.ProcessorABC):
         
         ## This is for rejecting events with large weights
         self.means_stddevs = defaultdict()
-        
+
         
     
     @property
@@ -486,39 +488,25 @@ class QJetMassProcessor(processor.ProcessorABC):
 
 
 
-            if self.skimfilename != None : 
-                self.skimfile = uproot.update(self.skimfilename)
-                if "Events" not in self.skimfile.keys():
-                    self.skimfile["Events"] = {
+            if self.skimfilename != None :
+                with uproot.recreate(self.skimfilename + str(time.time()) + ".root") as fout: 
+                    fout["Events"] = {
                         "reco_jet": ak.zip({
                             "pt":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.pt, value=np.nan))), 
                             "eta":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.eta, value=np.nan))), 
                             "phi":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.phi, value=np.nan))), 
-                            "mass":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.mass, value=np.nan)))
+                            "mass":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.mass, value=np.nan))),
+                            "msoftdrop":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.msoftdrop, value=np.nan)))
                         }),
                         "gen_jet": ak.zip({
                             "pt":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.pt, value=np.nan))), 
                             "eta":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.eta, value=np.nan))), 
                             "phi":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.phi, value=np.nan))), 
-                            "mass":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.mass, value=np.nan)))
-                        })
+                            "mass":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.mass, value=np.nan))),
+                            "msoftdrop":ak.packed(ak.without_parameters(ak.fill_none(groomed_gen_jet.mass, value=np.nan)))
+                        }),
+                        "weights": ak.packed(ak.without_parameters(weights))
                     }
-                else:                     
-                    self.skimfile["Events"].extend({
-                        "reco_jet": ak.zip({
-                            "pt":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.pt, value=np.nan))), 
-                            "eta":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.eta, value=np.nan))), 
-                            "phi":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.phi, value=np.nan))), 
-                            "mass":ak.packed(ak.without_parameters(ak.fill_none(reco_jet.mass, value=np.nan)))
-                        }),
-                        "gen_jet": ak.zip({
-                            "pt":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.pt, value=np.nan))), 
-                            "eta":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.eta, value=np.nan))), 
-                            "phi":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.phi, value=np.nan))), 
-                            "mass":ak.packed(ak.without_parameters(ak.fill_none(gen_jet.mass, value=np.nan)))
-                        })
-                    })
-                self.skimfile.close()
 
             self.hists["ptjet_mjet_u_gen"].fill( dataset=dataset, ptgen=gen_jet.pt, mgen=gen_jet.mass, weight=weights )
             self.hists["ptjet_mjet_g_gen"].fill( dataset=dataset, ptgen=gen_jet.pt, mgen=groomed_gen_jet.mass, weight=weights )
